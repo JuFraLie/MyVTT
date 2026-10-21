@@ -31,3 +31,11 @@ export interface ErrorPayload {
 export interface RoomCreateAck {
   code: string;
 }
+
+/**
+ * Hasil acknowledgment event `room:join` (A2).
+ * Kegagalan domain (kode salah, DM sudah ada) memakai `ok: false` agar
+ * bisa ditampilkan langsung ke pengguna.
+ */
+export type RoomJoinResult =
+  { ok: true; code: string; nickname: string; role: Role } | { ok: false; error: ErrorPayload };

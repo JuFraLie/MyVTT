@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import Button from '../../components/Button';
+import Input from '../../components/Input';
 import { useRoomStore } from './store';
 
+interface CreateRoomScreenProps {
+  onOpenJoin: () => void;
+}
+
 /**
- * Layar awal (A1): DM membuat ruang lalu mendapat kode 6 karakter
- * untuk dibagikan ke pemain (gabung ruang = fitur A2).
+ * Layar buat ruang (A1) + masuk sebagai DM (A2):
+ * membuat ruang, menampilkan kode untuk dibagikan, lalu DM memasukkan
+ * nama panggilan dan masuk ke ruangnya sendiri.
  */
-export default function CreateRoomScreen() {
-  const { code, status, errorMessage, createRoom } = useRoomStore();
+export default function CreateRoomScreen({ onOpenJoin }: CreateRoomScreenProps) {
+  const { code, status, errorMessage, createRoom, joinRoom } = useRoomStore();
   const [copied, setCopied] = useState(false);
+  const [nickname, setNickname] = useState('');
+  const busy = status === 'creating' || status === 'joining';
 
   async function handleCopy() {
     if (!code) return;
@@ -32,12 +40,11 @@ export default function CreateRoomScreen() {
 
       {code === null ? (
         <div className="w-full max-w-xs space-y-3">
-          <Button
-            className="w-full text-base"
-            disabled={status === 'creating'}
-            onClick={createRoom}
-          >
+          <Button className="w-full text-base" disabled={busy} onClick={createRoom}>
             {status === 'creating' ? 'Membuat ruang…' : 'Buat Ruang'}
+          </Button>
+          <Button variant="ghost" className="w-full" disabled={busy} onClick={onOpenJoin}>
+            Gabung Ruang
           </Button>
           {status === 'error' && (
             <p role="alert" className="text-sm text-red-400">
@@ -54,9 +61,28 @@ export default function CreateRoomScreen() {
           <Button variant="ghost" className="w-full" onClick={handleCopy}>
             {copied ? 'Tersalin ✓' : 'Salin kode'}
           </Button>
-          <p className="text-xs text-slate-500">
-            Pemain masuk dengan kode ini lewat layar Gabung Ruang (fitur A2, menyusul).
-          </p>
+          <label className="block space-y-1 text-left">
+            <span className="text-xs text-slate-400">Nama panggilan DM</span>
+            <Input
+              value={nickname}
+              onChange={(event) => setNickname(event.target.value)}
+              placeholder="mis. Dungeon Master"
+              maxLength={24}
+              autoComplete="off"
+            />
+          </label>
+          <Button
+            className="w-full text-base"
+            disabled={busy || nickname.trim().length === 0}
+            onClick={() => joinRoom({ code, nickname, role: 'dm' })}
+          >
+            {status === 'joining' ? 'Masuk…' : 'Masuk sebagai DM'}
+          </Button>
+          {status === 'error' && (
+            <p role="alert" className="text-sm text-red-400">
+              {errorMessage}
+            </p>
+          )}
         </div>
       )}
     </div>
