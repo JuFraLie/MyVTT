@@ -23,3 +23,11 @@ export interface ErrorPayload {
   code: string;
   message: string;
 }
+
+/**
+ * Hasil acknowledgment event `room:create` (A1).
+ * Kode 6 karakter unik di server, dibagikan ke pemain lewat fitur A2.
+ */
+export interface RoomCreateAck {
+  code: string;
+}

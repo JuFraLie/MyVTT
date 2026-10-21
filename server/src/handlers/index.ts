@@ -1,4 +1,5 @@
 import type { Server } from 'socket.io';
+import { registerRoomHandlers } from './room';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -8,6 +9,6 @@ import type { Server } from 'socket.io';
  * Setiap handler WAJIB memvalidasi payload dengan zod sebelum memutasi state
  * dan membalas event `error` (SERVER_EVENTS.ERROR) bila payload tidak valid.
  */
-export function registerHandlers(_io: Server): void {
-  // Fase 0: belum ada handler karena scaffold tidak mengimplementasi fitur.
+export function registerHandlers(io: Server): void {
+  registerRoomHandlers(io);
 }
