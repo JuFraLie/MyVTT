@@ -2,6 +2,7 @@ import type { Server } from 'socket.io';
 import { registerRoomHandlers } from './room';
 import { registerMapHandlers } from './map';
 import { registerGridHandlers } from './grid';
+import { registerTokenHandlers } from './token';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -15,4 +16,5 @@ export function registerHandlers(io: Server): void {
   registerRoomHandlers(io);
   registerMapHandlers(io);
   registerGridHandlers(io);
+  registerTokenHandlers(io);
 }

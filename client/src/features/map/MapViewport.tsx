@@ -1,11 +1,13 @@
 import { useRef, useState, type PointerEvent } from 'react';
-import type { GridConfig, RoomMap } from '@myvtt/shared';
+import type { GridConfig, RoomMap, Token } from '@myvtt/shared';
 import GridOverlay from '../grid/GridOverlay';
 import { useElementSize } from '../grid/useFitScale';
+import TokenLayer from '../token/TokenLayer';
 
 interface MapViewportProps {
   map: RoomMap;
   grid: GridConfig | null;
+  tokens: Token[];
 }
 
 interface View {
@@ -32,7 +34,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * dua jari = pan + pinch-zoom, mouse (desktop) = drag-pan.
  * Semua posisi dalam koordinat piksel gambar; kanvas memakai touch-action: none.
  */
-export default function MapViewport({ map, grid }: MapViewportProps) {
+export default function MapViewport({ map, grid, tokens }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
   const fit =
@@ -160,6 +162,7 @@ export default function MapViewport({ map, grid }: MapViewportProps) {
           className="absolute inset-0 h-full w-full"
         />
         {grid && <GridOverlay width={map.width} height={map.height} scale={1} grid={grid} />}
+        <TokenLayer tokens={tokens} grid={grid} />
       </div>
 
       {hint && (

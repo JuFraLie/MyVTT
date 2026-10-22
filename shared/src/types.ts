@@ -18,6 +18,40 @@ export interface GridConfig {
   opacity: number;
 }
 
+/** Warna preset token (C1): dipilih klien, divalidasi server lewat skema. */
+export const TOKEN_COLORS = [
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#06b6d4',
+  '#6366f1',
+  '#a855f7',
+  '#ec4899',
+] as const;
+
+/** Grid bawaan sebelum DM mengatur grid (B2); dipakai hitungan server & render. */
+export const DEFAULT_GRID: GridConfig = {
+  cellPx: 70,
+  offsetX: 0,
+  offsetY: 0,
+  locked: false,
+  color: '#3b82f6',
+  opacity: 0.6,
+};
+
+/**
+ * Token dasar (C1): warna + inisial bawaan (bila belum/gagal punya gambar).
+ * Posisi disimpan sebagai indeks kotak grid (col,row), bukan piksel (AGENTS.md §5).
+ */
+export interface Token {
+  id: string;
+  name: string;
+  col: number;
+  row: number;
+  color: string;
+}
+
 /** Payload bawaan event server→klien `error`. */
 export interface ErrorPayload {
   code: string;
@@ -56,6 +90,7 @@ export interface RoomFullState {
   members: RoomMember[];
   map: RoomMap | null;
   grid: GridConfig | null;
+  tokens: Token[];
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -70,3 +105,6 @@ export type MapSetResult = { ok: true } | { ok: false; error: ErrorPayload };
 
 /** Hasil acknowledgment event `grid:set` (B2). */
 export type GridSetResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Hasil acknowledgment event `token:add` (C1). */
+export type TokenAddResult = { ok: true } | { ok: false; error: ErrorPayload };

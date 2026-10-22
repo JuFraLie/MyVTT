@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TOKEN_COLORS } from './types';
 
 /**
  * Skema validasi zod per event (AGENTS.md §5 dan §6).
@@ -62,3 +63,19 @@ export const gridSetSchema = z.object({
 });
 
 export type GridSetPayload = z.infer<typeof gridSetSchema>;
+
+/**
+ * Payload `token:add` (C1): DM menambah token dasar (warna + inisial).
+ * Posisi (col,row) dihitung server agar spawn tidak menumpuk.
+ */
+export const tokenAddSchema = z.object({
+  name: z.string().trim().min(1).max(24),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .refine((value) => (TOKEN_COLORS as readonly string[]).includes(value), {
+      message: 'warna harus salah satu dari preset',
+    }),
+});
+
+export type TokenAddPayload = z.infer<typeof tokenAddSchema>;

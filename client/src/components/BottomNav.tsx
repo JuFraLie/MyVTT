@@ -34,11 +34,14 @@ const TABS: Tab[] = [
   },
 ];
 
-/** Navigasi bawah: empat tab, target sentuh >= 44 px, di zona jempol (AGENTS.md §7). */
+/**
+ * Navigasi: bawah di HP (zona jempol, target sentuh >= 44 px),
+ * rel kiri di layar lebar (md+) — tetap mobile-first, desktop sekunder (AGENTS.md §7).
+ */
 export default function BottomNav({ active, onChange }: BottomNavProps) {
   return (
-    <nav className="border-t border-slate-800 bg-slate-900 pb-[env(safe-area-inset-bottom)]">
-      <ul className="grid grid-cols-4">
+    <nav className="order-last border-t border-slate-800 bg-slate-900 pb-[env(safe-area-inset-bottom)] md:order-first md:h-full md:w-20 md:shrink-0 md:border-t-0 md:border-r md:pb-0 md:pt-2">
+      <ul className="grid grid-cols-4 md:grid-cols-1">
         {TABS.map((tab) => {
           const isActive = tab.id === active;
           return (

@@ -1,5 +1,13 @@
-import { randomInt } from 'node:crypto';
-import type { GridConfig, Role, RoomFullState, RoomMap, RoomMember } from '@myvtt/shared';
+import { randomInt, randomUUID } from 'node:crypto';
+import {
+  DEFAULT_GRID,
+  type GridConfig,
+  type Role,
+  type RoomFullState,
+  type RoomMap,
+  type RoomMember,
+  type Token,
+} from '@myvtt/shared';
 
 // Huruf mirip (0/O, 1/I, L) dihilangkan agar kode mudah diketik ulang dari layar HP.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
@@ -14,6 +22,8 @@ interface RoomRecord {
   map: RoomMap | null;
   /** Parameter grid dalam koordinat gambar (B2). */
   grid: GridConfig | null;
+  /** Daftar token dasar ruang (C1). */
+  tokens: Token[];
 }
 
 interface Membership {
@@ -34,7 +44,13 @@ export function createRoom(): string {
       code += CODE_ALPHABET.charAt(randomInt(CODE_ALPHABET.length));
     }
     if (!rooms.has(code)) {
-      rooms.set(code, { createdAt: Date.now(), dmSocketId: null, map: null, grid: null });
+      rooms.set(code, {
+        createdAt: Date.now(),
+        dmSocketId: null,
+        map: null,
+        grid: null,
+        tokens: [],
+      });
       return code;
     }
   }
@@ -94,7 +110,7 @@ export function getRoomState(code: string): RoomFullState | null {
       members.push({ socketId, nickname: membership.nickname, role: membership.role });
     }
   }
-  return { code, members, map: room.map, grid: room.grid };
+  return { code, members, map: room.map, grid: room.grid, tokens: room.tokens };
 }
 
 /** Mengganti peta aktif ruang (B1). */
@@ -107,6 +123,28 @@ export function setRoomMap(code: string, map: RoomMap): void {
 export function setRoomGrid(code: string, grid: GridConfig): void {
   const room = rooms.get(code);
   if (room) room.grid = grid;
+}
+
+/**
+ * Menambah token dasar (C1). Posisi spawn dihitung server dari grid
+ * (atau grid bawaan) — mulai dari tengah peta, digeser agar tidak menumpuk.
+ */
+export function addToken(code: string, name: string, color: string): Token | null {
+  const room = rooms.get(code);
+  if (!room || !room.map) return null;
+  const grid = room.grid ?? DEFAULT_GRID;
+  const cols = Math.max(1, Math.floor((room.map.width - grid.offsetX) / grid.cellPx));
+  const rows = Math.max(1, Math.floor((room.map.height - grid.offsetY) / grid.cellPx));
+  const slot = Math.floor(rows / 2) * cols + Math.floor(cols / 2) + room.tokens.length;
+  const token: Token = {
+    id: randomUUID(),
+    name,
+    color,
+    col: slot % cols,
+    row: Math.min(rows - 1, Math.floor(slot / cols)),
+  };
+  room.tokens.push(token);
+  return token;
 }
 
 export function getMembership(

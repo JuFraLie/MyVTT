@@ -11,6 +11,8 @@ import {
   type RoomJoinResult,
   type RoomMap,
   type RoomMember,
+  type Token,
+  type TokenAddResult,
 } from '@myvtt/shared';
 import { getSocket } from '../../lib/socket';
 
@@ -32,6 +34,8 @@ interface RoomState {
   map: RoomMap | null;
   /** Parameter grid (B2); diperbarui hanya oleh event state:full. */
   grid: GridConfig | null;
+  /** Token ruang (C1); diperbarui hanya oleh event state:full. */
+  tokens: Token[];
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -42,6 +46,8 @@ interface RoomState {
   setMap: (map: RoomMap) => Promise<MapSetResult>;
   /** Niat `grid:set` (B2): hanya berhasil jika pemanggil DM. */
   setGrid: (grid: GridConfig) => Promise<GridSetResult>;
+  /** Niat `token:add` (C1): hanya berhasil jika pemanggil DM; posisi dihitung server. */
+  addToken: (name: string, color: string) => Promise<TokenAddResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -51,6 +57,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   members: [],
   map: null,
   grid: null,
+  tokens: [],
   isConnected: false,
   status: 'idle',
   errorMessage: null,
@@ -135,13 +142,33 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  addToken: (name: string, color: string) => {
+    const socket = getSocket();
+    return new Promise<TokenAddResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.TOKEN_ADD,
+          { name, color },
+          (err: Error | null, res?: TokenAddResult) => {
+            if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+            else resolve(res);
+          },
+        );
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
 const socket = getSocket();
 
 socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
-  useRoomStore.setState({ members: state.members, map: state.map, grid: state.grid });
+  useRoomStore.setState({
+    members: state.members,
+    map: state.map,
+    grid: state.grid,
+    tokens: state.tokens,
+  });
 });
 
 // A4: setelah koneksi pulih, join ulang dengan kredensial tersimpan.
@@ -166,6 +193,7 @@ socket.on('connect', () => {
             members: [],
             map: null,
             grid: null,
+            tokens: [],
             status: 'error',
             errorMessage: res.error.message,
           });
