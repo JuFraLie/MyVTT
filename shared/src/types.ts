@@ -39,3 +39,19 @@ export interface RoomCreateAck {
  */
 export type RoomJoinResult =
   { ok: true; code: string; nickname: string; role: Role } | { ok: false; error: ErrorPayload };
+
+export interface RoomMember {
+  socketId: string;
+  nickname: string;
+  role: Role;
+}
+
+/**
+ * Payload event `state:full` (A3): potret state ruang dari server,
+ * satu-satunya sumber kebenaran klien. Bidang baru (peta, token, fog)
+ * ditambahkan bersama fiturnya.
+ */
+export interface RoomFullState {
+  code: string;
+  members: RoomMember[];
+}

@@ -1,5 +1,13 @@
 import { create } from 'zustand';
-import { CLIENT_EVENTS, type Role, type RoomCreateAck, type RoomJoinResult } from '@myvtt/shared';
+import {
+  CLIENT_EVENTS,
+  SERVER_EVENTS,
+  type Role,
+  type RoomCreateAck,
+  type RoomFullState,
+  type RoomJoinResult,
+  type RoomMember,
+} from '@myvtt/shared';
 import { getSocket } from '../../lib/socket';
 
 export interface JoinParams {
@@ -14,6 +22,8 @@ interface RoomState {
   /** Nama panggilan; null = belum masuk ruang (belum diizinkan membuka tab). */
   nickname: string | null;
   role: Role | null;
+  /** Anggota ruang menurut server (A3); diperbarui hanya oleh event state:full. */
+  members: RoomMember[];
   status: 'idle' | 'creating' | 'joining' | 'error';
   errorMessage: string | null;
   createRoom: () => void;
@@ -24,6 +34,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   code: null,
   nickname: null,
   role: null,
+  members: [],
   status: 'idle',
   errorMessage: null,
   createRoom: () => {
@@ -86,3 +97,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       );
   },
 }));
+
+// A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
+getSocket().on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
+  useRoomStore.setState({ members: state.members });
+});

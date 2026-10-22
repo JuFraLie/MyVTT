@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import type { Role } from '@myvtt/shared';
+import type { Role, RoomFullState, RoomMember } from '@myvtt/shared';
 
 // Huruf mirip (0/O, 1/I, L) dihilangkan agar kode mudah diketik ulang dari layar HP.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
@@ -14,6 +14,7 @@ interface RoomRecord {
 
 interface Membership {
   code: string;
+  nickname: string;
   role: Role;
 }
 
@@ -47,24 +48,46 @@ export type JoinOutcome = 'ok' | 'ROOM_NOT_FOUND' | 'DM_EXISTS';
  * Peran DM hanya boleh satu socket tersambung agar izin A6 nanti tidak ambigu;
  * DM lama otomatis terlepas saat koneksi putus (disconnect).
  */
-export function joinRoom(socketId: string, code: string, role: Role): JoinOutcome {
+export function joinRoom(
+  socketId: string,
+  code: string,
+  nickname: string,
+  role: Role,
+): JoinOutcome {
   const room = rooms.get(code);
   if (!room) return 'ROOM_NOT_FOUND';
   if (role === 'dm' && room.dmSocketId !== null && room.dmSocketId !== socketId) {
     return 'DM_EXISTS';
   }
   if (role === 'dm') room.dmSocketId = socketId;
-  memberships.set(socketId, { code, role });
+  memberships.set(socketId, { code, nickname, role });
   return 'ok';
 }
 
-/** Melepas keanggotaan socket saat koneksi terputus. */
-export function leaveRoom(socketId: string): void {
+/**
+ * Melepas keanggotaan socket saat koneksi terputus.
+ * Mengembalikan kode ruang yang ditinggalkan (atau null) agar handler
+ * dapat menyiarkan `state:full` terbaru ke ruang tersebut.
+ */
+export function leaveRoom(socketId: string): string | null {
   const membership = memberships.get(socketId);
-  if (!membership) return;
+  if (!membership) return null;
   memberships.delete(socketId);
   const room = rooms.get(membership.code);
   if (room && membership.role === 'dm' && room.dmSocketId === socketId) {
     room.dmSocketId = null;
   }
+  return membership.code;
+}
+
+/** Potret state ruang untuk event `state:full` (A3). */
+export function getRoomState(code: string): RoomFullState | null {
+  if (!rooms.has(code)) return null;
+  const members: RoomMember[] = [];
+  for (const [socketId, membership] of memberships) {
+    if (membership.code === code) {
+      members.push({ socketId, nickname: membership.nickname, role: membership.role });
+    }
+  }
+  return { code, members };
 }

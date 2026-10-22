@@ -13,7 +13,7 @@ import LogScreen from './features/log/LogScreen';
  */
 export default function App() {
   const [tab, setTab] = useState<TabId>('map');
-  const { code, nickname, role } = useRoomStore();
+  const { code, nickname, role, members } = useRoomStore();
 
   if (code === null || nickname === null) {
     return (
@@ -29,8 +29,8 @@ export default function App() {
         <span className="font-mono text-sm font-semibold tracking-widest text-indigo-300">
           {code}
         </span>
-        <span className="text-xs text-slate-400">
-          {nickname} · {role === 'dm' ? 'DM' : 'Pemain'}
+        <span className="truncate text-xs text-slate-400">
+          {nickname} · {role === 'dm' ? 'DM' : 'Pemain'} · {members.length} anggota
         </span>
       </header>
       <main className="flex-1 overflow-hidden">
