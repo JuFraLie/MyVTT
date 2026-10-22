@@ -13,7 +13,7 @@ import LogScreen from './features/log/LogScreen';
  */
 export default function App() {
   const [tab, setTab] = useState<TabId>('map');
-  const { code, nickname, role, members } = useRoomStore();
+  const { code, nickname, role, members, isConnected } = useRoomStore();
 
   if (code === null || nickname === null) {
     return (
@@ -32,6 +32,9 @@ export default function App() {
         <span className="truncate text-xs text-slate-400">
           {nickname} · {role === 'dm' ? 'DM' : 'Pemain'} · {members.length} anggota
         </span>
+        {!isConnected && (
+          <span className="shrink-0 text-xs text-amber-400">· terputus, menyambung ulang…</span>
+        )}
       </header>
       <main className="flex-1 overflow-hidden">
         {tab === 'map' && <MapScreen />}

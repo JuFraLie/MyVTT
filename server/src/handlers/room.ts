@@ -8,7 +8,14 @@ import {
   type RoomCreateAck,
   type RoomJoinResult,
 } from '@myvtt/shared';
-import { createRoom, getRoomState, joinRoom, leaveRoom } from '../rooms/registry';
+import {
+  createRoom,
+  getMembership,
+  getRoom,
+  getRoomState,
+  joinRoom,
+  leaveRoom,
+} from '../rooms/registry';
 
 const INVALID_CREATE_PAYLOAD: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
@@ -45,7 +52,20 @@ export function registerRoomHandlers(io: Server): void {
       if (typeof ack !== 'function') return;
 
       const { code, nickname, role } = parsed.data;
-      const outcome = joinRoom(socket.id, code, nickname, role);
+      let outcome = joinRoom(socket.id, code, nickname, role);
+
+      // A4: DM yang baru putus bisa jadi belum terproses server (disconnect baru
+      // dipanggil setelah ping timeout). Slot DM boleh diambil alih oleh socket
+      // dengan nama & peran sama; socket lama diputus paksa.
+      if (outcome === 'DM_EXISTS' && role === 'dm') {
+        const previousId = getRoom(code)?.dmSocketId ?? null;
+        const previousSocket = previousId ? io.sockets.sockets.get(previousId) : undefined;
+        if (previousId && previousSocket && getMembership(previousId)?.nickname === nickname) {
+          previousSocket.disconnect(true);
+          outcome = joinRoom(socket.id, code, nickname, role);
+        }
+      }
+
       if (outcome === 'ROOM_NOT_FOUND') {
         ack({
           ok: false,

@@ -91,3 +91,9 @@ export function getRoomState(code: string): RoomFullState | null {
   }
   return { code, members };
 }
+
+export function getMembership(
+  socketId: string,
+): { code: string; nickname: string; role: Role } | undefined {
+  return memberships.get(socketId);
+}
