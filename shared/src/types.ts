@@ -108,3 +108,13 @@ export type GridSetResult = { ok: true } | { ok: false; error: ErrorPayload };
 
 /** Hasil acknowledgment event `token:add` (C1). */
 export type TokenAddResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Payload event server→klien `token:moved` (C2): posisi token tersinkron. */
+export interface TokenMovedPayload {
+  id: string;
+  col: number;
+  row: number;
+}
+
+/** Hasil acknowledgment event `token:move` (C2). */
+export type TokenMoveResult = { ok: true } | { ok: false; error: ErrorPayload };

@@ -13,6 +13,8 @@ import {
   type RoomMember,
   type Token,
   type TokenAddResult,
+  type TokenMoveResult,
+  type TokenMovedPayload,
 } from '@myvtt/shared';
 import { getSocket } from '../../lib/socket';
 
@@ -48,6 +50,11 @@ interface RoomState {
   setGrid: (grid: GridConfig) => Promise<GridSetResult>;
   /** Niat `token:add` (C1): hanya berhasil jika pemanggil DM; posisi dihitung server. */
   addToken: (name: string, color: string) => Promise<TokenAddResult>;
+  /**
+   * Niat `token:move` (C2): snap hasil drag. Update optimistik dulu,
+   * rollback bila server menolak (AGENTS.md §6).
+   */
+  moveToken: (id: string, col: number, row: number) => Promise<TokenMoveResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -157,6 +164,41 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         );
     });
   },
+  moveToken: (id: string, col: number, row: number) => {
+    const socket = getSocket();
+    // Snapshot posisi sebelum update optimistik; dipakai rollback bila server menolak.
+    const previous = get().tokens.find((token) => token.id === id);
+    if (previous) {
+      set({
+        tokens: get().tokens.map((token) => (token.id === id ? { ...token, col, row } : token)),
+      });
+    }
+    return new Promise<TokenMoveResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.TOKEN_MOVE,
+          { id, col, row },
+          (err: Error | null, res?: TokenMoveResult) => {
+            const rollback = () => {
+              if (!previous) return;
+              set({
+                tokens: get().tokens.map((token) =>
+                  token.id === id ? { ...token, col: previous.col, row: previous.row } : token,
+                ),
+              });
+            };
+            if (err || !res) {
+              rollback();
+              reject(err ?? new Error('tanpa acknowledgment'));
+              return;
+            }
+            if (!res.ok) rollback();
+            resolve(res);
+          },
+        );
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
@@ -169,6 +211,14 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     grid: state.grid,
     tokens: state.tokens,
   });
+});
+
+socket.on(SERVER_EVENTS.TOKEN_MOVED, (payload: TokenMovedPayload) => {
+  useRoomStore.setState((state) => ({
+    tokens: state.tokens.map((token) =>
+      token.id === payload.id ? { ...token, col: payload.col, row: payload.row } : token,
+    ),
+  }));
 });
 
 // A4: setelah koneksi pulih, join ulang dengan kredensial tersimpan.

@@ -147,6 +147,15 @@ export function addToken(code: string, name: string, color: string): Token | nul
   return token;
 }
 
+/** Memindahkan token (C2) ke indeks kotak baru; false bila id tidak ditemukan. */
+export function moveToken(code: string, id: string, col: number, row: number): boolean {
+  const token = rooms.get(code)?.tokens.find((item) => item.id === id);
+  if (!token) return false;
+  token.col = col;
+  token.row = row;
+  return true;
+}
+
 export function getMembership(
   socketId: string,
 ): { code: string; nickname: string; role: Role } | undefined {

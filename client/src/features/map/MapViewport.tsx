@@ -162,7 +162,7 @@ export default function MapViewport({ map, grid, tokens }: MapViewportProps) {
           className="absolute inset-0 h-full w-full"
         />
         {grid && <GridOverlay width={map.width} height={map.height} scale={1} grid={grid} />}
-        <TokenLayer tokens={tokens} grid={grid} />
+        <TokenLayer tokens={tokens} grid={grid} scale={renderView.s} />
       </div>
 
       {hint && (

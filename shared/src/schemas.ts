@@ -79,3 +79,15 @@ export const tokenAddSchema = z.object({
 });
 
 export type TokenAddPayload = z.infer<typeof tokenAddSchema>;
+
+/**
+ * Payload `token:move` (C2): hasil snap-to-grid setelah token dilepas.
+ * `id` adalah UUID yang dibuat server (C1); col/row indeks kotak hasil snap.
+ */
+export const tokenMoveSchema = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+  col: z.number().int().min(0).max(999),
+  row: z.number().int().min(0).max(999),
+});
+
+export type TokenMovePayload = z.infer<typeof tokenMoveSchema>;
