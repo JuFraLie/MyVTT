@@ -1,41 +1,23 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import GridCalibrateScreen from '../grid/GridCalibrateScreen';
-import GridOverlay from '../grid/GridOverlay';
-import { useFitScale } from '../grid/useFitScale';
 import { useRoomStore } from '../room/store';
 import MapUpload from './MapUpload';
+import MapViewport from './MapViewport';
 
 /**
- * Layar Peta (tab F1): menampilkan peta aktif + grid (B1/B2).
- * DM bisa membuka kalibrasi grid; layar kalibrasi ditumpuk agar ukuran
- * pratinjau gambar tetap terukur saat ditutup kembali.
+ * Layar Peta (tab F1): menampilkan peta aktif + grid (B1/B2) lewat
+ * MapViewport (B3 pan & pinch-zoom). DM bisa membuka kalibrasi grid;
+ * layar kalibrasi ditumpuk agar viewport tidak di-unmount.
  */
 export default function MapScreen() {
   const { map, grid, role } = useRoomStore();
   const [calibrating, setCalibrating] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const fit = useFitScale(containerRef, map?.width ?? 0, map?.height ?? 0);
   const isDm = role === 'dm';
 
   return (
     <div className="relative h-full">
       {map ? (
-        <div ref={containerRef} className="flex h-full items-center justify-center overflow-hidden">
-          <div
-            className="relative shrink-0"
-            style={{ width: map.width * fit, height: map.height * fit }}
-          >
-            <img src={map.url} alt="Peta ruang" className="absolute inset-0 h-full w-full" />
-            {grid && fit > 0 && (
-              <GridOverlay
-                width={map.width * fit}
-                height={map.height * fit}
-                scale={fit}
-                grid={grid}
-              />
-            )}
-          </div>
-        </div>
+        <MapViewport map={map} grid={grid} />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-5xl" aria-hidden="true">

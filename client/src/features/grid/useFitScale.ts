@@ -1,5 +1,30 @@
 import { useLayoutEffect, useState, type RefObject } from 'react';
 
+/** Ukuran elemen `ref` (px) — diukur ulang otomatis saat berubah. */
+export function useElementSize(ref: RefObject<HTMLElement | null>): {
+  width: number;
+  height: number;
+} {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const update = () => {
+      const rect = element.getBoundingClientRect();
+      setSize({ width: rect.width, height: rect.height });
+    };
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return size;
+}
+
 /**
  * Skala pas (fit) agar gambar berukuran `natW x natH` muat di dalam elemen
  * `ref`. Dipakai MapScreen dan GridPreview agar grid sejajar dengan gambar.
