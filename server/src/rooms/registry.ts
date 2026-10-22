@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import type { Role, RoomFullState, RoomMember } from '@myvtt/shared';
+import type { Role, RoomFullState, RoomMap, RoomMember } from '@myvtt/shared';
 
 // Huruf mirip (0/O, 1/I, L) dihilangkan agar kode mudah diketik ulang dari layar HP.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
@@ -10,6 +10,8 @@ interface RoomRecord {
   createdAt: number;
   /** Socket pemegang peran DM; null bila DM belum masuk (A2). */
   dmSocketId: string | null;
+  /** Peta aktif (B1); satu peta per ruang. */
+  map: RoomMap | null;
 }
 
 interface Membership {
@@ -30,7 +32,7 @@ export function createRoom(): string {
       code += CODE_ALPHABET.charAt(randomInt(CODE_ALPHABET.length));
     }
     if (!rooms.has(code)) {
-      rooms.set(code, { createdAt: Date.now(), dmSocketId: null });
+      rooms.set(code, { createdAt: Date.now(), dmSocketId: null, map: null });
       return code;
     }
   }
@@ -82,14 +84,21 @@ export function leaveRoom(socketId: string): string | null {
 
 /** Potret state ruang untuk event `state:full` (A3). */
 export function getRoomState(code: string): RoomFullState | null {
-  if (!rooms.has(code)) return null;
+  const room = rooms.get(code);
+  if (!room) return null;
   const members: RoomMember[] = [];
   for (const [socketId, membership] of memberships) {
     if (membership.code === code) {
       members.push({ socketId, nickname: membership.nickname, role: membership.role });
     }
   }
-  return { code, members };
+  return { code, members, map: room.map };
+}
+
+/** Mengganti peta aktif ruang (B1). */
+export function setRoomMap(code: string, map: RoomMap): void {
+  const room = rooms.get(code);
+  if (room) room.map = map;
 }
 
 export function getMembership(

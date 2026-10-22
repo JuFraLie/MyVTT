@@ -2,14 +2,17 @@ import { createServer } from 'node:http';
 import express from 'express';
 import { Server } from 'socket.io';
 import { registerHandlers } from './handlers';
+import assetsRouter from './http/assetsRouter';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
 
 const app = express();
+app.use(express.json({ limit: '64kb' }));
 app.get('/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
+app.use(assetsRouter);
 
 const httpServer = createServer(app);
 

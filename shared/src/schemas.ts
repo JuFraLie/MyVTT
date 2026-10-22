@@ -24,3 +24,26 @@ export const roomJoinSchema = z.object({
 });
 
 export type RoomJoinPayload = z.infer<typeof roomJoinSchema>;
+
+/**
+ * Payload `map:set` (B1): hasil unggah peta yang sudah dikompres di klien.
+ * URL wajib Cloudinary agar state bersama hanya berisi aset CDN tepercaya.
+ */
+export const mapSetSchema = z.object({
+  url: z
+    .url()
+    .max(512)
+    .regex(/^https:\/\/res\.cloudinary\.com\//),
+  width: z.number().int().min(1).max(4096),
+  height: z.number().int().min(1).max(4096),
+});
+
+export type MapSetPayload = z.infer<typeof mapSetSchema>;
+
+/** Permintaan tanda tangan unggah Cloudinary (B1, REST `/api/assets/signature`). */
+export const assetSignatureRequestSchema = z.object({
+  roomCode: z.string().regex(/^[A-HJ-NP-TV-Z2-9]{6}$/),
+  kind: z.enum(['map']),
+});
+
+export type AssetSignatureRequest = z.infer<typeof assetSignatureRequestSchema>;

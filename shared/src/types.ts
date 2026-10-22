@@ -48,10 +48,21 @@ export interface RoomMember {
 
 /**
  * Payload event `state:full` (A3): potret state ruang dari server,
- * satu-satunya sumber kebenaran klien. Bidang baru (peta, token, fog)
+ * satu-satunya sumber kebenaran klien. Bidang baru (token, fog, log)
  * ditambahkan bersama fiturnya.
  */
 export interface RoomFullState {
   code: string;
   members: RoomMember[];
+  map: RoomMap | null;
 }
+
+/** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
+export interface RoomMap {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** Hasil acknowledgment event `map:set` (B1). */
+export type MapSetResult = { ok: true } | { ok: false; error: ErrorPayload };

@@ -1,5 +1,6 @@
 import type { Server } from 'socket.io';
 import { registerRoomHandlers } from './room';
+import { registerMapHandlers } from './map';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -11,4 +12,5 @@ import { registerRoomHandlers } from './room';
  */
 export function registerHandlers(io: Server): void {
   registerRoomHandlers(io);
+  registerMapHandlers(io);
 }

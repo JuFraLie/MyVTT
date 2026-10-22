@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type MapSetResult,
   type Role,
   type RoomCreateAck,
   type RoomFullState,
   type RoomJoinResult,
+  type RoomMap,
   type RoomMember,
 } from '@myvtt/shared';
 import { getSocket } from '../../lib/socket';
@@ -24,12 +26,16 @@ interface RoomState {
   role: Role | null;
   /** Anggota ruang menurut server (A3); diperbarui hanya oleh event state:full. */
   members: RoomMember[];
+  /** Peta aktif (B1); diperbarui hanya oleh event state:full. */
+  map: RoomMap | null;
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
   errorMessage: string | null;
   createRoom: () => void;
   joinRoom: (params: JoinParams) => void;
+  /** Niat `map:set` (B1): hanya berhasil jika pemanggil DM (divalidasi server). */
+  setMap: (map: RoomMap) => Promise<MapSetResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -37,6 +43,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   nickname: null,
   role: null,
   members: [],
+  map: null,
   isConnected: false,
   status: 'idle',
   errorMessage: null,
@@ -99,13 +106,24 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         },
       );
   },
+  setMap: (map: RoomMap) => {
+    const socket = getSocket();
+    return new Promise<MapSetResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.MAP_SET, map, (err: Error | null, res?: MapSetResult) => {
+          if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+          else resolve(res);
+        });
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
 const socket = getSocket();
 
 socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
-  useRoomStore.setState({ members: state.members });
+  useRoomStore.setState({ members: state.members, map: state.map });
 });
 
 // A4: setelah koneksi pulih, join ulang dengan kredensial tersimpan.
@@ -128,6 +146,7 @@ socket.on('connect', () => {
             nickname: null,
             role: null,
             members: [],
+            map: null,
             status: 'error',
             errorMessage: res.error.message,
           });

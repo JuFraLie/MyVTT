@@ -9,6 +9,8 @@ export default defineConfig({
     proxy: {
       // Dev: Socket.io lewat proxy Vite sehingga klien cukup memanggil io() tanpa URL khusus.
       '/socket.io': { target: 'http://localhost:3001', ws: true },
+      // Dev: REST signature unggah aset (B1).
+      '/api': { target: 'http://localhost:3001' },
     },
   },
 });
