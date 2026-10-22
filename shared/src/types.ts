@@ -55,6 +55,7 @@ export interface RoomFullState {
   code: string;
   members: RoomMember[];
   map: RoomMap | null;
+  grid: GridConfig | null;
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -66,3 +67,6 @@ export interface RoomMap {
 
 /** Hasil acknowledgment event `map:set` (B1). */
 export type MapSetResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Hasil acknowledgment event `grid:set` (B2). */
+export type GridSetResult = { ok: true } | { ok: false; error: ErrorPayload };

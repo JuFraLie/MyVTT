@@ -47,3 +47,18 @@ export const assetSignatureRequestSchema = z.object({
 });
 
 export type AssetSignatureRequest = z.infer<typeof assetSignatureRequestSchema>;
+
+/**
+ * Payload `grid:set` (B2): parameter grid dalam koordinat piksel gambar
+ * peta (bukan piksel layar) agar tidak bergeser saat zoom atau resize.
+ */
+export const gridSetSchema = z.object({
+  cellPx: z.number().int().min(8).max(4096),
+  offsetX: z.number().int().min(0).max(4096),
+  offsetY: z.number().int().min(0).max(4096),
+  locked: z.boolean(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  opacity: z.number().min(0).max(1),
+});
+
+export type GridSetPayload = z.infer<typeof gridSetSchema>;

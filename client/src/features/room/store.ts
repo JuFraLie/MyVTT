@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type GridConfig,
+  type GridSetResult,
   type MapSetResult,
   type Role,
   type RoomCreateAck,
@@ -28,6 +30,8 @@ interface RoomState {
   members: RoomMember[];
   /** Peta aktif (B1); diperbarui hanya oleh event state:full. */
   map: RoomMap | null;
+  /** Parameter grid (B2); diperbarui hanya oleh event state:full. */
+  grid: GridConfig | null;
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -36,6 +40,8 @@ interface RoomState {
   joinRoom: (params: JoinParams) => void;
   /** Niat `map:set` (B1): hanya berhasil jika pemanggil DM (divalidasi server). */
   setMap: (map: RoomMap) => Promise<MapSetResult>;
+  /** Niat `grid:set` (B2): hanya berhasil jika pemanggil DM. */
+  setGrid: (grid: GridConfig) => Promise<GridSetResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -44,6 +50,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   role: null,
   members: [],
   map: null,
+  grid: null,
   isConnected: false,
   status: 'idle',
   errorMessage: null,
@@ -117,13 +124,24 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  setGrid: (grid: GridConfig) => {
+    const socket = getSocket();
+    return new Promise<GridSetResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.GRID_SET, grid, (err: Error | null, res?: GridSetResult) => {
+          if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+          else resolve(res);
+        });
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
 const socket = getSocket();
 
 socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
-  useRoomStore.setState({ members: state.members, map: state.map });
+  useRoomStore.setState({ members: state.members, map: state.map, grid: state.grid });
 });
 
 // A4: setelah koneksi pulih, join ulang dengan kredensial tersimpan.
@@ -147,6 +165,7 @@ socket.on('connect', () => {
             role: null,
             members: [],
             map: null,
+            grid: null,
             status: 'error',
             errorMessage: res.error.message,
           });

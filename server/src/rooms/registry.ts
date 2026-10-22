@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import type { Role, RoomFullState, RoomMap, RoomMember } from '@myvtt/shared';
+import type { GridConfig, Role, RoomFullState, RoomMap, RoomMember } from '@myvtt/shared';
 
 // Huruf mirip (0/O, 1/I, L) dihilangkan agar kode mudah diketik ulang dari layar HP.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
@@ -12,6 +12,8 @@ interface RoomRecord {
   dmSocketId: string | null;
   /** Peta aktif (B1); satu peta per ruang. */
   map: RoomMap | null;
+  /** Parameter grid dalam koordinat gambar (B2). */
+  grid: GridConfig | null;
 }
 
 interface Membership {
@@ -32,7 +34,7 @@ export function createRoom(): string {
       code += CODE_ALPHABET.charAt(randomInt(CODE_ALPHABET.length));
     }
     if (!rooms.has(code)) {
-      rooms.set(code, { createdAt: Date.now(), dmSocketId: null, map: null });
+      rooms.set(code, { createdAt: Date.now(), dmSocketId: null, map: null, grid: null });
       return code;
     }
   }
@@ -92,13 +94,19 @@ export function getRoomState(code: string): RoomFullState | null {
       members.push({ socketId, nickname: membership.nickname, role: membership.role });
     }
   }
-  return { code, members, map: room.map };
+  return { code, members, map: room.map, grid: room.grid };
 }
 
 /** Mengganti peta aktif ruang (B1). */
 export function setRoomMap(code: string, map: RoomMap): void {
   const room = rooms.get(code);
   if (room) room.map = map;
+}
+
+/** Mengganti parameter grid ruang (B2). */
+export function setRoomGrid(code: string, grid: GridConfig): void {
+  const room = rooms.get(code);
+  if (room) room.grid = grid;
 }
 
 export function getMembership(
