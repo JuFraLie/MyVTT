@@ -8,6 +8,8 @@ interface MapViewportProps {
   map: RoomMap;
   grid: GridConfig | null;
   tokens: Token[];
+  /** Diteruskan ke TokenLayer: ketuk token (tanpa geser) = buka sheet HP. */
+  onTapToken: (token: Token) => void;
 }
 
 interface View {
@@ -34,7 +36,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * dua jari = pan + pinch-zoom, mouse (desktop) = drag-pan.
  * Semua posisi dalam koordinat piksel gambar; kanvas memakai touch-action: none.
  */
-export default function MapViewport({ map, grid, tokens }: MapViewportProps) {
+export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
   const fit =
@@ -162,7 +164,7 @@ export default function MapViewport({ map, grid, tokens }: MapViewportProps) {
           className="absolute inset-0 h-full w-full"
         />
         {grid && <GridOverlay width={map.width} height={map.height} scale={1} grid={grid} />}
-        <TokenLayer tokens={tokens} grid={grid} scale={renderView.s} />
+        <TokenLayer tokens={tokens} grid={grid} scale={renderView.s} onTapToken={onTapToken} />
       </div>
 
       {hint && (

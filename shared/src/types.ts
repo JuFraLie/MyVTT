@@ -50,6 +50,8 @@ export interface Token {
   col: number;
   row: number;
   color: string;
+  /** HP token (C3); default diisi server, diubah lewat `token:update`. */
+  hp: number;
 }
 
 /** Payload bawaan event server→klien `error`. */
@@ -118,3 +120,12 @@ export interface TokenMovedPayload {
 
 /** Hasil acknowledgment event `token:move` (C2). */
 export type TokenMoveResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Payload event server→klien `token:updated` (C3): HP token tersinkron. */
+export interface TokenUpdatedPayload {
+  id: string;
+  hp: number;
+}
+
+/** Hasil acknowledgment event `token:update` (C3). */
+export type TokenUpdateResult = { ok: true } | { ok: false; error: ErrorPayload };

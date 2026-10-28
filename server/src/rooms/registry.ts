@@ -13,6 +13,8 @@ import {
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
 const CODE_LENGTH = 6;
 const MAX_ATTEMPTS = 20;
+// HP awal token baru (C3); DM mengubahnya lewat bottom sheet setelah diletakkan.
+const DEFAULT_TOKEN_HP = 10;
 
 interface RoomRecord {
   createdAt: number;
@@ -142,6 +144,7 @@ export function addToken(code: string, name: string, color: string): Token | nul
     color,
     col: slot % cols,
     row: Math.min(rows - 1, Math.floor(slot / cols)),
+    hp: DEFAULT_TOKEN_HP,
   };
   room.tokens.push(token);
   return token;
@@ -153,6 +156,14 @@ export function moveToken(code: string, id: string, col: number, row: number): b
   if (!token) return false;
   token.col = col;
   token.row = row;
+  return true;
+}
+
+/** Mengubah HP token (C3); false bila id tidak ditemukan. */
+export function updateTokenHp(code: string, id: string, hp: number): boolean {
+  const token = rooms.get(code)?.tokens.find((item) => item.id === id);
+  if (!token) return false;
+  token.hp = hp;
   return true;
 }
 

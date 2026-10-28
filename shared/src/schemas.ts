@@ -91,3 +91,11 @@ export const tokenMoveSchema = z.object({
 });
 
 export type TokenMovePayload = z.infer<typeof tokenMoveSchema>;
+
+/** Payload `token:update` (C3): ubah HP token (ketuk −/+ atau ketik angka). */
+export const tokenUpdateSchema = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+  hp: z.number().int().min(0).max(999),
+});
+
+export type TokenUpdatePayload = z.infer<typeof tokenUpdateSchema>;

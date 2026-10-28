@@ -15,6 +15,8 @@ import {
   type TokenAddResult,
   type TokenMoveResult,
   type TokenMovedPayload,
+  type TokenUpdateResult,
+  type TokenUpdatedPayload,
 } from '@myvtt/shared';
 import { getSocket } from '../../lib/socket';
 
@@ -55,6 +57,8 @@ interface RoomState {
    * rollback bila server menolak (AGENTS.md §6).
    */
   moveToken: (id: string, col: number, row: number) => Promise<TokenMoveResult>;
+  /** Niat `token:update` (C3): ubah HP; optimistik + rollback seperti moveToken. */
+  updateTokenHp: (id: string, hp: number) => Promise<TokenUpdateResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -199,6 +203,39 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         );
     });
   },
+  updateTokenHp: (id: string, hp: number) => {
+    const socket = getSocket();
+    // Snapshot HP sebelum update optimistik; rollback bila server menolak.
+    const previous = get().tokens.find((token) => token.id === id);
+    if (previous) {
+      set({ tokens: get().tokens.map((token) => (token.id === id ? { ...token, hp } : token)) });
+    }
+    return new Promise<TokenUpdateResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.TOKEN_UPDATE,
+          { id, hp },
+          (err: Error | null, res?: TokenUpdateResult) => {
+            const rollback = () => {
+              if (!previous) return;
+              set({
+                tokens: get().tokens.map((token) =>
+                  token.id === id ? { ...token, hp: previous.hp } : token,
+                ),
+              });
+            };
+            if (err || !res) {
+              rollback();
+              reject(err ?? new Error('tanpa acknowledgment'));
+              return;
+            }
+            if (!res.ok) rollback();
+            resolve(res);
+          },
+        );
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
@@ -217,6 +254,14 @@ socket.on(SERVER_EVENTS.TOKEN_MOVED, (payload: TokenMovedPayload) => {
   useRoomStore.setState((state) => ({
     tokens: state.tokens.map((token) =>
       token.id === payload.id ? { ...token, col: payload.col, row: payload.row } : token,
+    ),
+  }));
+});
+
+socket.on(SERVER_EVENTS.TOKEN_UPDATED, (payload: TokenUpdatedPayload) => {
+  useRoomStore.setState((state) => ({
+    tokens: state.tokens.map((token) =>
+      token.id === payload.id ? { ...token, hp: payload.hp } : token,
     ),
   }));
 });

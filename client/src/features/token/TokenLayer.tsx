@@ -9,6 +9,8 @@ interface TokenLayerProps {
   grid: GridConfig | null;
   /** Skala tampilan viewport (layar→gambar) untuk mengubah delta jari. */
   scale: number;
+  /** Dipanggil saat token diketuk tanpa digeser (C3: buka sheet HP). */
+  onTapToken: (token: Token) => void;
 }
 
 interface DragState {
@@ -21,6 +23,9 @@ interface DragState {
   y: number;
 }
 
+/** Ambang layar (px) untuk membedakan ketuk vs geser (C3). */
+const TAP_THRESHOLD_PX = 8;
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
@@ -30,7 +35,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * Token menClaim gesture satu jari via stopPropagation — pan/zoom tetap
  * dua jari (B3). Semua koordinat dalam piksel gambar.
  */
-export default function TokenLayer({ tokens, grid, scale }: TokenLayerProps) {
+export default function TokenLayer({ tokens, grid, scale, onTapToken }: TokenLayerProps) {
   const resolved = resolveGrid(grid);
   const role = useRoomStore((state) => state.role);
   const moveToken = useRoomStore((state) => state.moveToken);
@@ -69,11 +74,20 @@ export default function TokenLayer({ tokens, grid, scale }: TokenLayerProps) {
     setDrag(next);
   }
 
-  function handleEnd() {
+  function handleEnd(event: PointerEvent<HTMLDivElement>) {
     const current = dragRef.current;
     dragRef.current = null;
     setDrag(null);
     if (!current) return;
+
+    // Ketuk (jarak jari di bawah ambang) = buka sheet HP; gerak = snap & kirim.
+    const distance = Math.hypot(event.clientX - current.pointerX, event.clientY - current.pointerY);
+    if (distance < TAP_THRESHOLD_PX) {
+      const tapped = tokens.find((item) => item.id === current.id);
+      if (tapped) onTapToken(tapped);
+      return;
+    }
+
     const col = clamp(Math.floor((current.x - resolved.offsetX) / resolved.cellPx), 0, 999);
     const row = clamp(Math.floor((current.y - resolved.offsetY) / resolved.cellPx), 0, 999);
     const token = tokens.find((item) => item.id === current.id);

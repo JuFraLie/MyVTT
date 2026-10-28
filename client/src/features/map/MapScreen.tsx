@@ -1,25 +1,34 @@
 import { useState } from 'react';
+import type { Token } from '@myvtt/shared';
 import GridCalibrateScreen from '../grid/GridCalibrateScreen';
 import { useRoomStore } from '../room/store';
 import AddTokenSheet from '../token/AddTokenSheet';
+import TokenHPSheet from '../token/TokenHPSheet';
 import MapUpload from './MapUpload';
 import MapViewport from './MapViewport';
 
 /**
- * Layar Peta (tab F1): menampilkan peta + grid (B1/B2) + token (C1)
- * lewat MapViewport (B3 pan & pinch-zoom). DM bisa membuka kalibrasi
- * grid dan sheet tambah token; keduanya menumpuk agar viewport tidak unmount.
+ * Layar Peta (tab F1): peta + grid (B1/B2) + token (C1) + sheet HP (C3),
+ * dengan pan & pinch-zoom (B3). Sheet dirender di sini — bukan di dalam
+ * viewport — karena position: fixed rusak di dalam elemen ber-transform.
  */
 export default function MapScreen() {
   const { map, grid, tokens, role } = useRoomStore();
   const [calibrating, setCalibrating] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
+  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const isDm = role === 'dm';
+  const selectedToken: Token | null = tokens.find((token) => token.id === selectedTokenId) ?? null;
 
   return (
     <div className="relative h-full">
       {map ? (
-        <MapViewport map={map} grid={grid} tokens={tokens} />
+        <MapViewport
+          map={map}
+          grid={grid}
+          tokens={tokens}
+          onTapToken={(token) => setSelectedTokenId(token.id)}
+        />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-5xl" aria-hidden="true">
@@ -54,6 +63,14 @@ export default function MapScreen() {
       )}
 
       {map && <AddTokenSheet open={addingToken} onClose={() => setAddingToken(false)} />}
+
+      {selectedToken && (
+        <TokenHPSheet
+          key={selectedToken.id}
+          token={selectedToken}
+          onClose={() => setSelectedTokenId(null)}
+        />
+      )}
 
       {calibrating && map && (
         <div className="absolute inset-0 z-40 bg-slate-950">

@@ -4,11 +4,20 @@ import {
   SERVER_EVENTS,
   tokenAddSchema,
   tokenMoveSchema,
+  tokenUpdateSchema,
   type ErrorPayload,
   type TokenAddResult,
   type TokenMoveResult,
+  type TokenUpdateResult,
 } from '@myvtt/shared';
-import { addToken, getMembership, getRoom, getRoomState, moveToken } from '../rooms/registry';
+import {
+  addToken,
+  getMembership,
+  getRoom,
+  getRoomState,
+  moveToken,
+  updateTokenHp,
+} from '../rooms/registry';
 
 const INVALID_PAYLOAD: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
@@ -18,6 +27,11 @@ const INVALID_PAYLOAD: ErrorPayload = {
 const INVALID_MOVE: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
   message: 'Payload token:move tidak valid',
+};
+
+const INVALID_UPDATE: ErrorPayload = {
+  code: 'INVALID_PAYLOAD',
+  message: 'Payload token:update tidak valid',
 };
 
 /** Handler C1: DM menambah token dasar (warna + inisial); disiarkan lewat state:full. */
@@ -99,5 +113,40 @@ export function registerTokenHandlers(io: Server): void {
       io.to(membership.code).emit(SERVER_EVENTS.TOKEN_MOVED, { id, col, row });
       ack({ ok: true });
     });
+
+    socket.on(
+      CLIENT_EVENTS.TOKEN_UPDATE,
+      (payload: unknown, ack: (res: TokenUpdateResult) => void) => {
+        const parsed = tokenUpdateSchema.safeParse(payload);
+        if (!parsed.success) {
+          socket.emit(SERVER_EVENTS.ERROR, INVALID_UPDATE);
+          return;
+        }
+        if (typeof ack !== 'function') return;
+
+        const membership = getMembership(socket.id);
+        if (!membership) {
+          ack({ ok: false, error: { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } });
+          return;
+        }
+        // Izin peran (A6): sementara hanya DM; edit HP pemain menyusul (C7/C8).
+        if (membership.role !== 'dm') {
+          ack({
+            ok: false,
+            error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh mengubah HP token.' },
+          });
+          return;
+        }
+
+        const { id, hp } = parsed.data;
+        if (!updateTokenHp(membership.code, id, hp)) {
+          ack({ ok: false, error: { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } });
+          return;
+        }
+
+        io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, { id, hp });
+        ack({ ok: true });
+      },
+    );
   });
 }
