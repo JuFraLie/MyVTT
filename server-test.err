@@ -1,3 +1,5 @@
+[db] koneksi gagal, lanjut in-memory: connect ECONNREFUSED 127.0.0.1:9999
+[db] koneksi gagal, lanjut in-memory: connect ECONNREFUSED 127.0.0.1:9999
 npm error Lifecycle script `dev` failed with error:
 npm error code 4294967295
 npm error path D:\2. GIT\MyVTT\server

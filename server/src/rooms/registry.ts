@@ -8,6 +8,7 @@ import {
   type RoomMember,
   type Token,
 } from '@myvtt/shared';
+import { loadRoom, saveRoom } from '../db';
 
 // Huruf mirip (0/O, 1/I, L) dihilangkan agar kode mudah diketik ulang dari layar HP.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
@@ -34,9 +35,30 @@ interface Membership {
   role: Role;
 }
 
-// Penyimpanan sementara (A5 menambahkan persistensi MongoDB).
+// Penyimpanan sementara; A5 menambahkan write-through ke MongoDB.
 const rooms = new Map<string, RoomRecord>();
 const memberships = new Map<string, Membership>();
+
+/** Simpan state ruang ke DB setelah mutasi (fire-and-forget, A5). */
+function persist(code: string): void {
+  const room = rooms.get(code);
+  if (!room) return;
+  void saveRoom(code, { map: room.map, grid: room.grid, tokens: room.tokens });
+}
+
+/**
+ * Pastikan ruang ada di memori; bila tidak, pulihkan dari database (A5)
+ * agar sesi bisa dilanjutkan setelah server restart atau hari berikutnya.
+ * Mengembalikan false bila tidak ada di memori maupun di DB.
+ */
+export async function hydrateRoom(code: string): Promise<boolean> {
+  if (rooms.has(code)) return true;
+  const persisted = await loadRoom(code);
+  if (!persisted) return false;
+  rooms.set(code, { createdAt: Date.now(), dmSocketId: null, ...persisted });
+  console.log(`[room] ${code} dipulihkan dari database`);
+  return true;
+}
 
 /** Membuat ruang baru dan mengembalikan kode 6 karakter yang unik di server ini. */
 export function createRoom(): string {
@@ -53,6 +75,7 @@ export function createRoom(): string {
         grid: null,
         tokens: [],
       });
+      persist(code);
       return code;
     }
   }
@@ -118,13 +141,19 @@ export function getRoomState(code: string): RoomFullState | null {
 /** Mengganti peta aktif ruang (B1). */
 export function setRoomMap(code: string, map: RoomMap): void {
   const room = rooms.get(code);
-  if (room) room.map = map;
+  if (room) {
+    room.map = map;
+    persist(code);
+  }
 }
 
 /** Mengganti parameter grid ruang (B2). */
 export function setRoomGrid(code: string, grid: GridConfig): void {
   const room = rooms.get(code);
-  if (room) room.grid = grid;
+  if (room) {
+    room.grid = grid;
+    persist(code);
+  }
 }
 
 /**
@@ -147,6 +176,7 @@ export function addToken(code: string, name: string, color: string): Token | nul
     hp: DEFAULT_TOKEN_HP,
   };
   room.tokens.push(token);
+  persist(code);
   return token;
 }
 
@@ -156,6 +186,7 @@ export function moveToken(code: string, id: string, col: number, row: number): b
   if (!token) return false;
   token.col = col;
   token.row = row;
+  persist(code);
   return true;
 }
 
@@ -164,6 +195,7 @@ export function updateTokenHp(code: string, id: string, hp: number): boolean {
   const token = rooms.get(code)?.tokens.find((item) => item.id === id);
   if (!token) return false;
   token.hp = hp;
+  persist(code);
   return true;
 }
 

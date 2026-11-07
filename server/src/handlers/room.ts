@@ -13,6 +13,7 @@ import {
   getMembership,
   getRoom,
   getRoomState,
+  hydrateRoom,
   joinRoom,
   leaveRoom,
 } from '../rooms/registry';
@@ -43,53 +44,59 @@ export function registerRoomHandlers(io: Server): void {
       ack({ code });
     });
 
-    socket.on(CLIENT_EVENTS.ROOM_JOIN, (payload: unknown, ack: (res: RoomJoinResult) => void) => {
-      const parsed = roomJoinSchema.safeParse(payload);
-      if (!parsed.success) {
-        socket.emit(SERVER_EVENTS.ERROR, INVALID_JOIN_PAYLOAD);
-        return;
-      }
-      if (typeof ack !== 'function') return;
-
-      const { code, nickname, role } = parsed.data;
-      let outcome = joinRoom(socket.id, code, nickname, role);
-
-      // A4: DM yang baru putus bisa jadi belum terproses server (disconnect baru
-      // dipanggil setelah ping timeout). Slot DM boleh diambil alih oleh socket
-      // dengan nama & peran sama; socket lama diputus paksa.
-      if (outcome === 'DM_EXISTS' && role === 'dm') {
-        const previousId = getRoom(code)?.dmSocketId ?? null;
-        const previousSocket = previousId ? io.sockets.sockets.get(previousId) : undefined;
-        if (previousId && previousSocket && getMembership(previousId)?.nickname === nickname) {
-          previousSocket.disconnect(true);
-          outcome = joinRoom(socket.id, code, nickname, role);
+    socket.on(
+      CLIENT_EVENTS.ROOM_JOIN,
+      async (payload: unknown, ack: (res: RoomJoinResult) => void) => {
+        const parsed = roomJoinSchema.safeParse(payload);
+        if (!parsed.success) {
+          socket.emit(SERVER_EVENTS.ERROR, INVALID_JOIN_PAYLOAD);
+          return;
         }
-      }
+        if (typeof ack !== 'function') return;
 
-      if (outcome === 'ROOM_NOT_FOUND') {
-        ack({
-          ok: false,
-          error: { code: 'ROOM_NOT_FOUND', message: 'Kode ruang tidak ditemukan.' },
-        });
-        return;
-      }
-      if (outcome === 'DM_EXISTS') {
-        ack({
-          ok: false,
-          error: { code: 'DM_EXISTS', message: 'Ruang ini sudah punya DM yang tersambung.' },
-        });
-        return;
-      }
+        const { code, nickname, role } = parsed.data;
+        // A5: ruang tidak ada di memori (server restart / sesi lain hari) →
+        // pulihkan dulu dari database sebelum menentukan hasil join.
+        await hydrateRoom(code);
+        let outcome = joinRoom(socket.id, code, nickname, role);
 
-      console.log(`[room] ${socket.id} joined ${code} as ${role} (${nickname})`);
-      ack({ ok: true, code, nickname, role });
+        // A4: DM yang baru putus bisa jadi belum terproses server (disconnect baru
+        // dipanggil setelah ping timeout). Slot DM boleh diambil alih oleh socket
+        // dengan nama & peran sama; socket lama diputus paksa.
+        if (outcome === 'DM_EXISTS' && role === 'dm') {
+          const previousId = getRoom(code)?.dmSocketId ?? null;
+          const previousSocket = previousId ? io.sockets.sockets.get(previousId) : undefined;
+          if (previousId && previousSocket && getMembership(previousId)?.nickname === nickname) {
+            previousSocket.disconnect(true);
+            outcome = joinRoom(socket.id, code, nickname, role);
+          }
+        }
 
-      // A3: ruang = channel Socket.io; seluruh anggota (termasuk yang baru masuk)
-      // menerima potret state terbaru dari server.
-      socket.join(code);
-      const state = getRoomState(code);
-      if (state) io.to(code).emit(SERVER_EVENTS.STATE_FULL, state);
-    });
+        if (outcome === 'ROOM_NOT_FOUND') {
+          ack({
+            ok: false,
+            error: { code: 'ROOM_NOT_FOUND', message: 'Kode ruang tidak ditemukan.' },
+          });
+          return;
+        }
+        if (outcome === 'DM_EXISTS') {
+          ack({
+            ok: false,
+            error: { code: 'DM_EXISTS', message: 'Ruang ini sudah punya DM yang tersambung.' },
+          });
+          return;
+        }
+
+        console.log(`[room] ${socket.id} joined ${code} as ${role} (${nickname})`);
+        ack({ ok: true, code, nickname, role });
+
+        // A3: ruang = channel Socket.io; seluruh anggota (termasuk yang baru masuk)
+        // menerima potret state terbaru dari server.
+        socket.join(code);
+        const state = getRoomState(code);
+        if (state) io.to(code).emit(SERVER_EVENTS.STATE_FULL, state);
+      },
+    );
 
     socket.on('disconnect', () => {
       const leftCode = leaveRoom(socket.id);
