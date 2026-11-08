@@ -194,3 +194,18 @@ export const characterSetSchema = z.object({
 });
 
 export type CharacterSetPayload = z.infer<typeof characterSetSchema>;
+
+/**
+ * Data demografi partisipan (G1): diisi sekali setelah consent, dipakai
+ * bersama oleh G2 (metadata telemetry), G4 (kuesioner), dan G5 (ekspor CSV).
+ */
+export const demographicsSchema = z.object({
+  /** Pengalaman main D&D partisipan. */
+  dndExperience: z.enum(['belum', 'pernah', '1-2', 'lebih-2']),
+  /** Perangkat utama yang dipakai mengikuti studi. */
+  device: z.enum(['ponsel', 'tablet', 'laptop']),
+  /** Perkiraan ukuran layar diagonal (inci). */
+  screenInches: z.number().min(3).max(30),
+});
+
+export type Demographics = z.infer<typeof demographicsSchema>;
