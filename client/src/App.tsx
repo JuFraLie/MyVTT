@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import BottomNav, { type TabId } from './components/BottomNav';
 import RoomGateScreen from './features/room/RoomGateScreen';
 import { useRoomStore } from './features/room/store';
@@ -7,17 +7,23 @@ import DiceScreen from './features/dice/DiceScreen';
 import CharacterScreen from './features/character/CharacterScreen';
 import LogScreen from './features/log/LogScreen';
 import ResearchFlow from './features/research/ResearchFlow';
+import { initTelemetry } from './lib/telemetry';
 import { loadParticipant } from './lib/participant';
 
 /**
  * App shell mobile-first (F1) dengan empat tab: Peta, Dadu, Karakter, Log.
  * Tema gelap default (F2). Gerbang riset (G1) tampil pertama kali bila
- * partisipan belum setuju; baru gerbang sesi (A1/A2).
+ * partisipan belum setuju; baru gerbang sesi (A1/A2). Telemetry (G2) aktif
+ * otomatis — pencatatannya tetap diblokir tanpa record consent.
  */
 export default function App() {
   const [tab, setTab] = useState<TabId>('map');
   const [agreed, setAgreed] = useState(() => loadParticipant() !== null);
   const { code, nickname, role, members, isConnected } = useRoomStore();
+
+  useEffect(() => {
+    initTelemetry();
+  }, []);
 
   if (!agreed) {
     return (

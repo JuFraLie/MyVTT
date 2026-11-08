@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent } from 'react';
 import type { GridConfig, RoomMap, Token } from '@myvtt/shared';
+import { logTelemetry } from '../../lib/telemetry';
 import FogOverlay from '../fog/FogOverlay';
 import { useFogPaint } from '../fog/useFogPaint';
 import GridOverlay from '../grid/GridOverlay';
@@ -36,7 +37,14 @@ interface PinchState {
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 6;
 
+// Ambang telemetry (G2): geser >8 px = pan nyata; ketukan <10 px & <500 ms = tap.
+const PAN_THRESHOLD_PX = 8;
+const TAP_SLOP_PX = 10;
+const TAP_MAX_MS = 500;
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
 /**
  * Peta + grid dengan gesture sendiri (B3, AGENTS §7):
@@ -67,6 +75,7 @@ export default function MapViewport({
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<PinchState | null>(null);
   const panRef = useRef<{ x: number; y: number; view: View } | null>(null);
+  const tapRef = useRef<{ t: number; x: number; y: number } | null>(null);
 
   function setView(next: View | null) {
     viewRef.current = next;
@@ -106,6 +115,7 @@ export default function MapViewport({
     if (pointersRef.current.size === 2) {
       // Jari kedua mengalahkan cat: goresan parsial tetap dikomit, lalu pinch.
       fogPaint.abort();
+      tapRef.current = null; // bukan ketukan: dua jari = gesture, bukan tap
       const points = [...pointersRef.current.values()];
       const a = points[0];
       const b = points[1];
@@ -123,7 +133,10 @@ export default function MapViewport({
     // Mode fog: sentuh satu jari diarahkan ke alat cat; selain itu no-op (B3).
     if (fogPaint.begin(event, rect, resolveView())) {
       event.currentTarget.setPointerCapture(event.pointerId);
+      return;
     }
+    // Ketukan satu jari tanpa alat: dicatat sebagai kandidat ketukan salah (G2).
+    tapRef.current = { t: performance.now(), x: event.clientX, y: event.clientY };
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -169,9 +182,44 @@ export default function MapViewport({
 
   function handlePointerEnd(event: PointerEvent<HTMLDivElement>) {
     fogPaint.end(); // no-op bila tidak sedang meng-cat; komit goresan selesai
+    const pinchStart = pinchRef.current;
+    const panStart = panRef.current;
+    const pinchEnding = pinchStart !== null && pointersRef.current.size === 2;
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size < 2) pinchRef.current = null;
     panRef.current = null;
+
+    // Telemetry G2: akhir gesture → catat zoom/pan hanya bila tampilan berubah.
+    const end = viewRef.current;
+    if (end && pinchEnding && pinchStart) {
+      if (Math.abs(end.s - pinchStart.view.s) > 1e-4) {
+        logTelemetry('map_zoom', { from: round3(pinchStart.view.s), to: round3(end.s) });
+      }
+      const movedX = end.x - pinchStart.view.x;
+      const movedY = end.y - pinchStart.view.y;
+      if (Math.hypot(movedX, movedY) > PAN_THRESHOLD_PX) {
+        logTelemetry('map_pan', { dx: Math.round(movedX), dy: Math.round(movedY) });
+      }
+    }
+    if (end && panStart && event.pointerType === 'mouse') {
+      const movedX = end.x - panStart.view.x;
+      const movedY = end.y - panStart.view.y;
+      if (Math.hypot(movedX, movedY) > PAN_THRESHOLD_PX) {
+        logTelemetry('map_pan', { dx: Math.round(movedX), dy: Math.round(movedY) });
+      }
+    }
+
+    // Ketukan salah (G2): tap diam di peta tanpa alat & tanpa efek apa pun.
+    // Token sudah stopPropagation (bukan bagian viewport) & mode fog memakai
+    // alat cat — keduanya tidak masuk hitungan ini.
+    const tap = tapRef.current;
+    tapRef.current = null;
+    if (tap && pointersRef.current.size === 0 && event.pointerType !== 'mouse') {
+      const moved = Math.hypot(event.clientX - tap.x, event.clientY - tap.y);
+      if (moved < TAP_SLOP_PX && performance.now() - tap.t < TAP_MAX_MS) {
+        logTelemetry('mis_tap', {});
+      }
+    }
   }
 
   return (

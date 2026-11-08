@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
+import type { TelemetryEvent } from '@myvtt/shared';
 import { RoomModel, type PersistedRoom } from './models/RoomModel';
+import { TelemetryModel } from './models/TelemetryModel';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? '';
 const CONNECT_TIMEOUT_MS = 3000;
@@ -47,6 +49,33 @@ export async function saveRoom(code: string, data: RoomData): Promise<void> {
   } catch (error) {
     console.warn(`[db] gagal simpan ruang ${code}:`, error);
   }
+}
+
+// Buffer telemetry saat DB nonaktif (G2): menampung sampai G5 mengekspor.
+const TELEMETRY_BUFFER_LIMIT = 10_000;
+const telemetryBuffer: TelemetryEvent[] = [];
+
+/**
+ * Simpan satu event telemetry (G2) — write-through ke MongoDB bila tersedia,
+ * selalu masuk buffer memori sebagai jalur fallback/ekspor.
+ */
+export async function saveTelemetry(event: TelemetryEvent): Promise<void> {
+  telemetryBuffer.push(event);
+  if (telemetryBuffer.length > TELEMETRY_BUFFER_LIMIT) {
+    telemetryBuffer.splice(0, telemetryBuffer.length - TELEMETRY_BUFFER_LIMIT);
+  }
+  const instance = await connectDb();
+  if (!instance) return;
+  try {
+    await TelemetryModel.create(event);
+  } catch (error) {
+    console.warn('[db] gagal simpan telemetry:', error);
+  }
+}
+
+/** Salinan buffer telemetry (G5: ekspor CSV saat tanpa MongoDB). */
+export function getTelemetryBuffer(): TelemetryEvent[] {
+  return [...telemetryBuffer];
 }
 
 /** Ambil state ruang; null bila tidak ada di DB / DB nonaktif / gagal baca. */

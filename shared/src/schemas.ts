@@ -209,3 +209,47 @@ export const demographicsSchema = z.object({
 });
 
 export type Demographics = z.infer<typeof demographicsSchema>;
+
+/**
+ * Daftar tipe event telemetry (G2, AGENTS §8) — satu sumber untuk klien &
+ * server. `task_*` disiapkan untuk G3, `undo` untuk C6, `sync_probe` adalah
+ * jangkar RTT (di-ack server tapi TIDAK disimpan sebagai data).
+ */
+export const TELEMETRY_TYPES = [
+  'session_start',
+  'disconnect',
+  'reconnect',
+  'sync_probe',
+  'sync_rtt',
+  'map_zoom',
+  'map_pan',
+  'mis_tap',
+  'undo',
+  'task_start',
+  'task_end',
+  'demographics',
+] as const;
+
+export type TelemetryEventType = (typeof TELEMETRY_TYPES)[number];
+
+/** Metadata ringkas: nilai skalar saja — tanpa objek bersarang. */
+export const telemetryMetadataSchema = z.record(
+  z.string(),
+  z.union([z.string(), z.number(), z.boolean()]),
+);
+
+export type TelemetryMetadata = z.infer<typeof telemetryMetadataSchema>;
+
+/**
+ * Envelope wajib setiap event telemetry (G2): participantId UUID anonim,
+ * sessionId per pemuatan halaman, tipe dari daftar, timestamp ms, metadata.
+ */
+export const telemetryEventSchema = z.object({
+  participantId: z.uuid(),
+  sessionId: z.uuid(),
+  type: z.enum(TELEMETRY_TYPES),
+  at: z.number().int().nonnegative(),
+  metadata: telemetryMetadataSchema,
+});
+
+export type TelemetryEvent = z.infer<typeof telemetryEventSchema>;

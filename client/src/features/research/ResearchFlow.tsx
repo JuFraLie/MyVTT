@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { Demographics } from '@myvtt/shared';
 import { createParticipantId, saveParticipant } from '../../lib/participant';
+import { logTelemetry } from '../../lib/telemetry';
 import ConsentScreen from './ConsentScreen';
 import DemographicsScreen from './DemographicsScreen';
 
@@ -23,6 +24,13 @@ export default function ResearchFlow({ onComplete }: ResearchFlowProps) {
       consent: true,
       demographics,
       agreedAt: Date.now(),
+    });
+    // Data demografi ikut ke server sebagai event telemetry (G2) agar G5 bisa
+    // mengekspornya bersama log — terkirim otomatis saat koneksi terbuka.
+    logTelemetry('demographics', {
+      dndExperience: demographics.dndExperience,
+      device: demographics.device,
+      screenInches: demographics.screenInches,
     });
     onComplete();
   }
