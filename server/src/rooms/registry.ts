@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import {
   DEFAULT_GRID,
   type AssetEntry,
+  type Character,
   type GridConfig,
   type LogEntry,
   type Role,
@@ -36,6 +37,8 @@ interface RoomRecord {
   library: AssetEntry[];
   /** Log aksi bersama (D3): dadu, HP, giliran — urut waktu. */
   log: LogEntry[];
+  /** Lembar karakter per pemain (E1); satu per nickname. */
+  characters: Character[];
 }
 
 interface Membership {
@@ -59,6 +62,7 @@ function persist(code: string): void {
     fog: room.fog,
     library: room.library,
     log: room.log,
+    characters: room.characters,
   });
 }
 
@@ -93,6 +97,7 @@ export function createRoom(): string {
         fog: [],
         library: [],
         log: [],
+        characters: [],
       });
       persist(code);
       return code;
@@ -163,6 +168,7 @@ export function getRoomState(code: string): RoomFullState | null {
     fog: room.fog,
     library: room.library,
     log: room.log,
+    characters: room.characters,
   };
 }
 
@@ -234,6 +240,24 @@ export function appendLog(
   if (room.log.length > LOG_LIMIT) room.log.splice(0, room.log.length - LOG_LIMIT);
   persist(code);
   return full;
+}
+
+// Batas lembar karakter per ruang (E1) — mencegah akumulasi dari nickname baru.
+const CHARACTER_LIMIT = 20;
+
+/**
+ * Simpan (upsert) lembar karakter milik `owner` (E1); false bila batas
+ * tercapai untuk pemilik baru. Owner diambil dari sesi, bukan payload.
+ */
+export function setCharacter(code: string, character: Character): boolean {
+  const room = rooms.get(code);
+  if (!room) return false;
+  const index = room.characters.findIndex((item) => item.owner === character.owner);
+  if (index < 0 && room.characters.length >= CHARACTER_LIMIT) return false;
+  if (index >= 0) room.characters[index] = character;
+  else room.characters.push(character);
+  persist(code);
+  return true;
 }
 
 /** Mengganti parameter grid ruang (B2). */

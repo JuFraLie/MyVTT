@@ -7,6 +7,9 @@ import {
   type AssetEntry,
   type AssetRemoveResult,
   type AssetRemovedPayload,
+  type Character,
+  type CharacterSetResult,
+  type CharacterUpdatedPayload,
   type DiceRolledPayload,
   type DiceRollResult,
   type DiceType,
@@ -61,6 +64,8 @@ interface RoomState {
   library: AssetEntry[];
   /** Log aksi bersama (D3): dadu, HP, giliran — urut waktu, terbaru di akhir. */
   log: LogEntry[];
+  /** Lembar karakter per pemain di ruang (E1); diperbarui state:full & character:updated. */
+  characters: Character[];
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -107,6 +112,11 @@ interface RoomState {
   lastRoll: DiceRolledPayload | null;
   /** Niat `dice:roll` (D1): angka dadu dihitung server, semua klien terima `dice:rolled`. */
   rollDice: (dice: DiceType, count: number, modifier: number) => Promise<DiceRollResult>;
+  /**
+   * Niat `character:set` (E1): simpan isi lembar LENGKAP milik pengirim
+   * (upsert). Owner diisi server dari nickname sesi — tidak dikirim klien.
+   */
+  setCharacter: (data: Omit<Character, 'owner'>) => Promise<CharacterSetResult>;
   /** Niat `asset:add` (C8): daftarkan unggahan ke pustaka (DM, maks 40). */
   addAsset: (name: string, type: TokenType, image: string) => Promise<AssetAddResult>;
   /** Niat `asset:remove` (C8): hapus entri pustaka (DM); token memakai URL tetap. */
@@ -124,6 +134,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   fog: [],
   library: [],
   log: [],
+  characters: [],
   lastRoll: null,
   isConnected: false,
   status: 'idle',
@@ -375,6 +386,18 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         );
     });
   },
+  setCharacter: (data: Omit<Character, 'owner'>) => {
+    const socket = getSocket();
+    // Tanpa optimistik: lembarku sendiri disimpan lewat broadcast character:updated.
+    return new Promise<CharacterSetResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.CHARACTER_SET, data, (err: Error | null, res?: CharacterSetResult) => {
+          if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+          else resolve(res);
+        });
+    });
+  },
   addAsset: (name: string, type: TokenType, image: string) => {
     const socket = getSocket();
     // Tanpa optimistik: entri masuk lewat broadcast asset:added (C8).
@@ -416,11 +439,21 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     fog: state.fog,
     library: state.library,
     log: state.log,
+    characters: state.characters,
   });
 });
 
 socket.on(SERVER_EVENTS.LOG_APPENDED, (payload: LogAppendedPayload) => {
   useRoomStore.setState((state) => ({ log: [...state.log, payload.entry] }));
+});
+
+socket.on(SERVER_EVENTS.CHARACTER_UPDATED, (payload: CharacterUpdatedPayload) => {
+  useRoomStore.setState((state) => ({
+    characters: [
+      ...state.characters.filter((item) => item.owner !== payload.character.owner),
+      payload.character,
+    ],
+  }));
 });
 
 socket.on(SERVER_EVENTS.FOG_UPDATED, (payload: FogUpdatedPayload) => {
@@ -496,6 +529,7 @@ socket.on('connect', () => {
             fog: [],
             library: [],
             log: [],
+            characters: [],
             lastRoll: null,
             status: 'error',
             errorMessage: res.error.message,

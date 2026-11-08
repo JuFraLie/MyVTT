@@ -168,3 +168,29 @@ export const diceRollSchema = z.object({
 });
 
 export type DiceRollPayload = z.infer<typeof diceRollSchema>;
+
+/** Nilai kemampuan masuk akal untuk D&D (E1): 0..30. */
+const abilityValue = z.number().int().min(0).max(30);
+
+/**
+ * Payload `character:set` (E1): simpan (upsert) lembar milik pengirim.
+ * `owner` TIDAK diterima dari klien — server mengisi dari nickname sesi
+ * agar pemain tidak bisa menimpa lembar orang lain.
+ */
+export const characterSetSchema = z.object({
+  name: z.string().trim().min(1).max(40),
+  class: z.string().trim().max(30),
+  level: z.number().int().min(1).max(20),
+  hp: z.number().int().min(0).max(999),
+  ac: z.number().int().min(0).max(99),
+  abilities: z.object({
+    str: abilityValue,
+    dex: abilityValue,
+    con: abilityValue,
+    int: abilityValue,
+    wis: abilityValue,
+    cha: abilityValue,
+  }),
+});
+
+export type CharacterSetPayload = z.infer<typeof characterSetSchema>;

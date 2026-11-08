@@ -125,6 +125,8 @@ export interface RoomFullState {
   library: AssetEntry[];
   /** Log aksi bersama (D3): dadu, HP, giliran — urut waktu, kapasitas server. */
   log: LogEntry[];
+  /** Lembar karakter per pemain di ruang (E1); owner = nickname pembuat. */
+  characters: Character[];
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -231,6 +233,38 @@ export interface LogEntry {
 export interface LogAppendedPayload {
   entry: LogEntry;
 }
+
+/** Enam nilai kemampuan D&D (E1). */
+export interface CharacterAbilities {
+  str: number;
+  dex: number;
+  con: number;
+  int: number;
+  wis: number;
+  cha: number;
+}
+
+/**
+ * Lembar karakter ringkas (E1) — disimpan per pemain di ruang.
+ * `owner` = nama panggilan pembuat; diisi server, tidak pernah dari klien.
+ */
+export interface Character {
+  owner: string;
+  name: string;
+  class: string;
+  level: number;
+  hp: number;
+  ac: number;
+  abilities: CharacterAbilities;
+}
+
+/** Payload event server→klien `character:updated` (E1): lembar milik `owner`. */
+export interface CharacterUpdatedPayload {
+  character: Character;
+}
+
+/** Hasil acknowledgment event `character:set` (E1). */
+export type CharacterSetResult = { ok: true } | { ok: false; error: ErrorPayload };
 
 /** Hasil acknowledgment event `asset:add` (C8). */
 export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };

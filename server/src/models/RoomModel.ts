@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import type { AssetEntry, GridConfig, LogEntry, RoomMap, Token } from '@myvtt/shared';
+import type { AssetEntry, Character, GridConfig, LogEntry, RoomMap, Token } from '@myvtt/shared';
 
 /**
  * Bentuk ruang yang dipersistensikan (A5): state sesi yang harus bertahan
@@ -15,6 +15,7 @@ export interface PersistedRoom {
   fog: string[];
   library: AssetEntry[];
   log: LogEntry[];
+  characters: Character[];
 }
 
 // Skema longgar (Mixed) karena validasi ketat sudah dilakukan zod di
@@ -28,6 +29,7 @@ const roomSchema = new Schema(
     fog: { type: [String], default: [] },
     library: { type: [Schema.Types.Mixed], default: [] },
     log: { type: [Schema.Types.Mixed], default: [] },
+    characters: { type: [Schema.Types.Mixed], default: [] },
   },
   { timestamps: true },
 );

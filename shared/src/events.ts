@@ -16,6 +16,7 @@ export const CLIENT_EVENTS = {
   TOKEN_REMOVE: 'token:remove',
   FOG_SET: 'fog:set',
   DICE_ROLL: 'dice:roll',
+  CHARACTER_SET: 'character:set',
   INITIATIVE_UPDATE: 'initiative:update',
   UNDO_REQUEST: 'undo:request',
   TELEMETRY_EVENT: 'telemetry:event',
@@ -31,6 +32,7 @@ export const SERVER_EVENTS = {
   FOG_UPDATED: 'fog:updated',
   DICE_ROLLED: 'dice:rolled',
   LOG_APPENDED: 'log:appended',
+  CHARACTER_UPDATED: 'character:updated',
   INITIATIVE_UPDATED: 'initiative:updated',
   ERROR: 'error',
 } as const;
