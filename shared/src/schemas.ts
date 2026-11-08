@@ -156,3 +156,15 @@ export const assetRemoveSchema = z.object({
 });
 
 export type AssetRemovePayload = z.infer<typeof assetRemoveSchema>;
+
+/**
+ * Payload `dice:roll` (D1): lemparan dadu. Hasil (rolls + total) dihitung di
+ * server dengan pembangkit acak server — klien tidak pernah mengirim angka hasil.
+ */
+export const diceRollSchema = z.object({
+  dice: z.enum(['d4', 'd6', 'd8', 'd10', 'd12', 'd20']),
+  count: z.number().int().min(1).max(20),
+  modifier: z.number().int().min(-99).max(99),
+});
+
+export type DiceRollPayload = z.infer<typeof diceRollSchema>;

@@ -7,6 +7,9 @@ import {
   type AssetEntry,
   type AssetRemoveResult,
   type AssetRemovedPayload,
+  type DiceRolledPayload,
+  type DiceRollResult,
+  type DiceType,
   type GridConfig,
   type GridSetResult,
   type FogSetResult,
@@ -93,6 +96,13 @@ interface RoomState {
    * Optimistik + rollback; sinkron lewat broadcast `fog:updated`.
    */
   setFog: (cells: string[]) => Promise<FogSetResult>;
+  /**
+   * Hasil lemparan terakhir (D1) — efemeral di klien, bukan state persistensi;
+   * riwayat bersama (log) menyusul di D3.
+   */
+  lastRoll: DiceRolledPayload | null;
+  /** Niat `dice:roll` (D1): angka dadu dihitung server, semua klien terima `dice:rolled`. */
+  rollDice: (dice: DiceType, count: number, modifier: number) => Promise<DiceRollResult>;
   /** Niat `asset:add` (C8): daftarkan unggahan ke pustaka (DM, maks 40). */
   addAsset: (name: string, type: TokenType, image: string) => Promise<AssetAddResult>;
   /** Niat `asset:remove` (C8): hapus entri pustaka (DM); token memakai URL tetap. */
@@ -109,6 +119,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   tokens: [],
   fog: [],
   library: [],
+  lastRoll: null,
   isConnected: false,
   status: 'idle',
   errorMessage: null,
@@ -343,6 +354,22 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  rollDice: (dice: DiceType, count: number, modifier: number) => {
+    const socket = getSocket();
+    // Tanpa optimistik: hasil sah hanya datang dari `dice:rolled` (server).
+    return new Promise<DiceRollResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.DICE_ROLL,
+          { dice, count, modifier },
+          (err: Error | null, res?: DiceRollResult) => {
+            if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+            else resolve(res);
+          },
+        );
+    });
+  },
   addAsset: (name: string, type: TokenType, image: string) => {
     const socket = getSocket();
     // Tanpa optimistik: entri masuk lewat broadcast asset:added (C8).
@@ -388,6 +415,10 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
 
 socket.on(SERVER_EVENTS.FOG_UPDATED, (payload: FogUpdatedPayload) => {
   useRoomStore.setState({ fog: payload.cells });
+});
+
+socket.on(SERVER_EVENTS.DICE_ROLLED, (payload: DiceRolledPayload) => {
+  useRoomStore.setState({ lastRoll: payload });
 });
 
 socket.on(SERVER_EVENTS.ASSET_ADDED, (payload: AssetAddedPayload) => {
@@ -454,6 +485,7 @@ socket.on('connect', () => {
             tokens: [],
             fog: [],
             library: [],
+            lastRoll: null,
             status: 'error',
             errorMessage: res.error.message,
           });

@@ -191,6 +191,25 @@ export interface AssetRemovedPayload {
   id: string;
 }
 
+/** Tipe dadu yang didukung (D1). */
+export type DiceType = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20';
+
+/** Payload event server→klien `dice:rolled` (D1): hasil lemparan anggota ruang. */
+export interface DiceRolledPayload {
+  dice: DiceType;
+  count: number;
+  /** Nilai mentah tiap dadu (tanpa modifier), berurutan sesuai lemparan. */
+  rolls: number[];
+  modifier: number;
+  /** total = sum(rolls) + modifier — dihitung di server agar adil (D1). */
+  total: number;
+  /** Nama panggilan pemilik lemparan. */
+  nickname: string;
+}
+
+/** Hasil acknowledgment event `dice:roll` (D1). */
+export type DiceRollResult = { ok: true } | { ok: false; error: ErrorPayload };
+
 /** Hasil acknowledgment event `asset:add` (C8). */
 export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };
 
