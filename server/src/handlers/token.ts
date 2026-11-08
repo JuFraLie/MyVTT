@@ -51,12 +51,12 @@ const NOT_IN_ROOM = { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } 
 const TOKEN_MISSING = { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } as const;
 
 /**
- * Handler token (C1–C3 + A6 + C7 + C9):
+ * Handler token (C1–C3 + A6 + C7 + C9 + C4):
  * - token:add   DM saja; `owner` divalidasi ada pemainnya; batas 40 gambar/ruang;
  *               `size` = sisi kotak (1/2/3), spawn dikunci agar muat di peta.
  * - token:move  DM bebas; pemain hanya token miliknya (canManageToken).
- * - token:update HP = DM saja (A6); gambar & ukuran = DM atau pemilik (C7/C9);
- *               perubahan HP nyata ikut dicatat ke log bersama (D3).
+ * - token:update HP = DM saja (A6); gambar, ukuran & kondisi = DM atau pemilik
+ *               (C7/C9/C4); perubahan HP nyata ikut dicatat ke log (D3).
  * - token:remove DM saja; disiarkan `token:removed`.
  */
 export function registerTokenHandlers(io: Server): void {
@@ -184,7 +184,7 @@ export function registerTokenHandlers(io: Server): void {
           return;
         }
 
-        const { id, hp, image, size } = parsed.data;
+        const { id, hp, image, size, conditions } = parsed.data;
         const token = getToken(membership.code, id);
         if (!token) {
           ack({ ok: false, error: TOKEN_MISSING });
@@ -198,10 +198,11 @@ export function registerTokenHandlers(io: Server): void {
           });
           return;
         }
-        // C7/C9: ganti gambar (termasuk menghapus) atau ukuran = DM atau pemilik.
+        // C7/C9/C4: gambar (termasuk menghapus), ukuran, atau kondisi = DM atau pemilik.
         const manageImage = image !== undefined && image !== token.image;
         const manageSize = size !== undefined && size !== (token.size ?? 1);
-        if ((manageImage || manageSize) && !canManageToken(membership, token)) {
+        const manageConditions = conditions !== undefined;
+        if ((manageImage || manageSize || manageConditions) && !canManageToken(membership, token)) {
           ack({
             ok: false,
             error: { code: 'FORBIDDEN', message: 'Hanya DM atau pemilik token.' },
@@ -220,13 +221,19 @@ export function registerTokenHandlers(io: Server): void {
 
         // HP lama disimpan dulu untuk entri log (D3) sebelum updateToken memutasi.
         const hpBefore = token.hp;
-        if (!updateToken(membership.code, id, { hp, image, size })) {
+        if (!updateToken(membership.code, id, { hp, image, size, conditions })) {
           ack({ ok: false, error: TOKEN_MISSING });
           return;
         }
 
         // Hanya field terkirim yang ikut disiarkan (undefined terhapus saat serialisasi JSON).
-        io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, { id, hp, image, size });
+        io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, {
+          id,
+          hp,
+          image,
+          size,
+          conditions,
+        });
         // D3: catat perubahan HP yang nyata (nilai sama tidak dicatat).
         if (hp !== undefined && hp !== hpBefore) {
           const entry = appendLog(membership.code, {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TOKEN_COLORS } from './types';
+import { CONDITION_PRESETS, TOKEN_COLORS, type ConditionId } from './types';
 
 /**
  * Skema validasi zod per event (AGENTS.md §5 dan §6).
@@ -111,11 +111,22 @@ export const tokenUpdateSchema = z
     hp: z.number().int().min(0).max(999).optional(),
     image: cloudinaryImageUrl.nullish(),
     size: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+    /** Kondisi preset (C4): maks 6 butir, id harus dari CONDITION_PRESETS. */
+    conditions: z
+      .array(
+        z.enum(CONDITION_PRESETS.map((preset) => preset.id) as [ConditionId, ...ConditionId[]]),
+      )
+      .max(6)
+      .optional(),
   })
   .refine(
-    (value) => value.hp !== undefined || value.image !== undefined || value.size !== undefined,
+    (value) =>
+      value.hp !== undefined ||
+      value.image !== undefined ||
+      value.size !== undefined ||
+      value.conditions !== undefined,
     {
-      message: 'token:update harus membawa hp, image, atau size',
+      message: 'token:update harus membawa hp, image, size, atau conditions',
     },
   );
 

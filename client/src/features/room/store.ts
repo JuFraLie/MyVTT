@@ -36,6 +36,7 @@ import {
   type TokenMovedPayload,
   type TokenRemoveResult,
   type TokenRemovedPayload,
+  type ConditionId,
   type TokenUpdateResult,
   type TokenUpdatedPayload,
 } from '@myvtt/shared';
@@ -103,6 +104,8 @@ interface RoomState {
   setTokenImage: (id: string, image: string | null) => Promise<TokenUpdateResult>;
   /** Niat `token:update` field `size` (C9): ubah ukuran sisi kotak token. */
   setTokenSize: (id: string, size: 1 | 2 | 3) => Promise<TokenUpdateResult>;
+  /** Niat `token:update` (C4): ganti daftar kondisi preset token. */
+  setTokenConditions: (id: string, conditions: ConditionId[]) => Promise<TokenUpdateResult>;
   /** Niat `token:remove` (A6): hapus token (DM); sinkron lewat `token:removed`. */
   removeToken: (id: string) => Promise<TokenRemoveResult>;
   /**
@@ -361,6 +364,41 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         );
     });
   },
+  setTokenConditions: (id: string, conditions: ConditionId[]) => {
+    const socket = getSocket();
+    // Snapshot kondisi sebelum update optimistik; rollback bila server menolak.
+    const previous = get().tokens.find((token) => token.id === id);
+    if (previous) {
+      set({
+        tokens: get().tokens.map((token) => (token.id === id ? { ...token, conditions } : token)),
+      });
+    }
+    return new Promise<TokenUpdateResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.TOKEN_UPDATE,
+          { id, conditions },
+          (err: Error | null, res?: TokenUpdateResult) => {
+            const rollback = () => {
+              if (!previous) return;
+              set({
+                tokens: get().tokens.map((token) =>
+                  token.id === id ? { ...token, conditions: previous.conditions } : token,
+                ),
+              });
+            };
+            if (err || !res) {
+              rollback();
+              reject(err ?? new Error('tanpa acknowledgment'));
+              return;
+            }
+            if (!res.ok) rollback();
+            resolve(res);
+          },
+        );
+    });
+  },
   setFog: (cells: string[]) => {
     const socket = getSocket();
     // Snapshot sebelum optimistik; rollback bila server menolak (DM-only, A6).
@@ -524,12 +562,13 @@ socket.on(SERVER_EVENTS.TOKEN_UPDATED, (payload: TokenUpdatedPayload) => {
   useRoomStore.setState((state) => ({
     tokens: state.tokens.map((token) => {
       if (token.id !== payload.id) return token;
-      // Hanya field terkirim yang berubah (HP C3 / gambar C7 / ukuran C9).
+      // Hanya field terkirim yang berubah (HP C3 / gambar C7 / ukuran C9 / kondisi C4).
       return {
         ...token,
         hp: payload.hp ?? token.hp,
         ...(payload.image !== undefined ? { image: payload.image } : {}),
         ...(payload.size !== undefined ? { size: payload.size } : {}),
+        ...(payload.conditions !== undefined ? { conditions: payload.conditions } : {}),
       };
     }),
   }));

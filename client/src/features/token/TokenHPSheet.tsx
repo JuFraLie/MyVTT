@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Token } from '@myvtt/shared';
 import BottomSheet from '../../components/BottomSheet';
 import { useRoomStore } from '../room/store';
+import ConditionChips from './ConditionChips';
 import TokenImageControls from './TokenImageControls';
 import TokenSizeRow from './TokenSizeRow';
 
@@ -119,6 +120,8 @@ export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
         <TokenImageControls token={token} />
 
         <TokenSizeRow token={token} />
+
+        <ConditionChips token={token} />
 
         {canEdit && (
           <button

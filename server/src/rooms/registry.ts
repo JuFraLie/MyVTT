@@ -3,6 +3,7 @@ import {
   DEFAULT_GRID,
   type AssetEntry,
   type Character,
+  type ConditionId,
   type GridConfig,
   type LogEntry,
   type Role,
@@ -346,17 +347,23 @@ export function moveToken(code: string, id: string, col: number, row: number): b
   return true;
 }
 
-/** Mengubah HP dan/atau gambar & ukuran token (C3/C7/C9); false bila id tak ada. */
+/** Mengubah HP/gambar/ukuran/kondisi token (C3/C7/C9/C4); false bila id tak ada. */
 export function updateToken(
   code: string,
   id: string,
-  patch: { hp?: number; image?: string | null; size?: 1 | 2 | 3 },
+  patch: {
+    hp?: number;
+    image?: string | null;
+    size?: 1 | 2 | 3;
+    conditions?: ConditionId[];
+  },
 ): boolean {
   const token = rooms.get(code)?.tokens.find((item) => item.id === id);
   if (!token) return false;
   if (patch.hp !== undefined) token.hp = patch.hp;
   if (patch.image !== undefined) token.image = patch.image;
   if (patch.size !== undefined) token.size = patch.size;
+  if (patch.conditions !== undefined) token.conditions = patch.conditions;
   persist(code);
   return true;
 }

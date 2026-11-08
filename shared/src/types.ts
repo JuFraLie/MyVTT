@@ -67,7 +67,24 @@ export interface Token {
    * Hilang = Medium (dokumen lama); anchor (col,row) = kotak kiri-atas.
    */
   size?: 1 | 2 | 3;
+  /**
+   * Ikon kondisi preset yang menempel di token (C4), maks 6 butir.
+   * Hilang = tanpa kondisi (dokumen lama).
+   */
+  conditions?: ConditionId[];
 }
+
+/** Enam kondisi preset (C4): satu sumber untuk UI klien & validasi server. */
+export const CONDITION_PRESETS = [
+  { id: 'poisoned', icon: '🤢', label: 'Teracuni' },
+  { id: 'stunned', icon: '😵', label: 'Pingsan' },
+  { id: 'prone', icon: '🛏️', label: 'Terjatuh' },
+  { id: 'blinded', icon: '🙈', label: 'Buta' },
+  { id: 'frightened', icon: '😨', label: 'Takut' },
+  { id: 'concentration', icon: '🎯', label: 'Konsentrasi' },
+] as const;
+
+export type ConditionId = (typeof CONDITION_PRESETS)[number]['id'];
 
 /** Payload bawaan event server→klien `error`. */
 export interface ErrorPayload {
@@ -156,14 +173,15 @@ export interface TokenMovedPayload {
 export type TokenMoveResult = { ok: true } | { ok: false; error: ErrorPayload };
 
 /**
- * Payload event server→klien `token:updated` (C3/C7/C9): HP, gambar, dan/atau
- * ukuran token tersinkron. Hanya field yang dikirim yang berubah.
+ * Payload event server→klien `token:updated` (C3/C7/C9/C4): HP, gambar,
+ * ukuran, dan/atau kondisi token tersinkron. Hanya field yang dikirim berubah.
  */
 export interface TokenUpdatedPayload {
   id: string;
   hp?: number;
   image?: string | null;
   size?: 1 | 2 | 3;
+  conditions?: ConditionId[];
 }
 
 /** Hasil acknowledgment event `token:update` (C3). */
