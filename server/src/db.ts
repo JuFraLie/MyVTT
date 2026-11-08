@@ -78,6 +78,26 @@ export function getTelemetryBuffer(): TelemetryEvent[] {
   return [...telemetryBuffer];
 }
 
+/** Seluruh event telemetry untuk ekspor (G5): dari MongoDB bila ada, fallback buffer. */
+export async function loadTelemetry(): Promise<TelemetryEvent[]> {
+  const instance = await connectDb();
+  if (instance) {
+    try {
+      const docs = await TelemetryModel.find().sort({ at: 1 }).lean();
+      return docs.map((doc) => ({
+        participantId: doc.participantId,
+        sessionId: doc.sessionId,
+        type: doc.type as TelemetryEvent['type'],
+        at: doc.at,
+        metadata: (doc.metadata ?? {}) as TelemetryEvent['metadata'],
+      }));
+    } catch (error) {
+      console.warn('[db] gagal baca telemetry:', error);
+    }
+  }
+  return getTelemetryBuffer();
+}
+
 /** Ambil state ruang; null bila tidak ada di DB / DB nonaktif / gagal baca. */
 export async function loadRoom(code: string): Promise<RoomData | null> {
   const instance = await connectDb();

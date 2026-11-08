@@ -3,6 +3,7 @@ import express from 'express';
 import { Server } from 'socket.io';
 import { registerHandlers } from './handlers';
 import assetsRouter from './http/assetsRouter';
+import researchRouter from './http/researchRouter';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
@@ -13,6 +14,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 app.use(assetsRouter);
+app.use(researchRouter);
 
 const httpServer = createServer(app);
 

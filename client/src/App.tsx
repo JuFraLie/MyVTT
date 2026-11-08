@@ -8,6 +8,7 @@ import CharacterScreen from './features/character/CharacterScreen';
 import LogScreen from './features/log/LogScreen';
 import ResearchFlow from './features/research/ResearchFlow';
 import QuestionnaireScreen from './features/research/QuestionnaireScreen';
+import ResearcherExport from './features/research/ResearcherExport';
 import TaskBar from './features/research/TaskBar';
 import { questionnaireDone } from './features/research/questionnaire';
 import { initTaskWatcher, tasksFinished, useTaskStore } from './features/research/taskStore';
@@ -27,6 +28,8 @@ export default function App() {
     () => loadParticipant() !== null && tasksFinished() && !questionnaireDone(),
   );
   const taskActive = useTaskStore((state) => state.active);
+  // Gerbang peneliti (G5): hanya hash URL khusus; tanpa data partisipan.
+  const [researcherView, setResearcherView] = useState(() => window.location.hash === '#/peneliti');
   const { code, nickname, role, members, isConnected } = useRoomStore();
 
   useEffect(() => {
@@ -46,6 +49,16 @@ export default function App() {
     check();
     return useTaskStore.subscribe(check);
   }, [agreed]);
+
+  useEffect(() => {
+    const onHash = () => setResearcherView(window.location.hash === '#/peneliti');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  if (researcherView) {
+    return <ResearcherExport />;
+  }
 
   if (!agreed) {
     return (
