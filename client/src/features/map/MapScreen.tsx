@@ -13,7 +13,7 @@ import MapViewport from './MapViewport';
  * viewport — karena position: fixed rusak di dalam elemen ber-transform.
  */
 export default function MapScreen() {
-  const { map, grid, tokens, fog, role, setFog } = useRoomStore();
+  const { map, grid, tokens, fog, role, setFog, rulers, updateRuler, clearRuler } = useRoomStore();
   const [calibrating, setCalibrating] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
   const [fogMode, setFogMode] = useState(false);
@@ -32,6 +32,9 @@ export default function MapScreen() {
           fog={fog}
           fogMode={fogMode}
           onFogChange={(cells) => void setFog(cells)}
+          rulers={rulers}
+          onRulerMove={updateRuler}
+          onRulerEnd={clearRuler}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">

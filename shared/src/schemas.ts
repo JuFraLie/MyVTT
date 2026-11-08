@@ -210,6 +210,23 @@ export const demographicsSchema = z.object({
 
 export type Demographics = z.infer<typeof demographicsSchema>;
 
+/** Indeks kotak grid 0..999 (batas praktis ruang, konsisten dengan token). */
+const gridCellSchema = z.object({
+  col: z.number().int().min(0).max(999),
+  row: z.number().int().min(0).max(999),
+});
+
+/**
+ * Payload `ruler:set` (B5): pasangan ujung dalam indeks kotak; salah satu
+ * atau kedua ujung `null` = menutup penggaris.
+ */
+export const rulerSetSchema = z.object({
+  from: gridCellSchema.nullable(),
+  to: gridCellSchema.nullable(),
+});
+
+export type RulerSetPayload = z.infer<typeof rulerSetSchema>;
+
 /**
  * Daftar tipe event telemetry (G2, AGENTS §8) — satu sumber untuk klien &
  * server. `task_*` disiapkan untuk G3, `undo` untuk C6, `sync_probe` adalah

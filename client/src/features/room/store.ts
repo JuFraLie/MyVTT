@@ -13,7 +13,10 @@ import {
   type DiceRolledPayload,
   type DiceRollResult,
   type DiceType,
+  type GridCell,
   type GridConfig,
+  type RulerState,
+  type RulerUpdatedPayload,
   type GridSetResult,
   type FogSetResult,
   type FogUpdatedPayload,
@@ -66,6 +69,8 @@ interface RoomState {
   log: LogEntry[];
   /** Lembar karakter per pemain di ruang (E1); diperbarui state:full & character:updated. */
   characters: Character[];
+  /** Penggaris jarak aktif per nickname (B5) — transien, tidak ikut state:full. */
+  rulers: Record<string, RulerState>;
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -117,6 +122,10 @@ interface RoomState {
    * (upsert). Owner diisi server dari nickname sesi — tidak dikirim klien.
    */
   setCharacter: (data: Omit<Character, 'owner'>) => Promise<CharacterSetResult>;
+  /** Niat `ruler:set` (B5): perbarui ujung penggaris milikku (optimistik). */
+  updateRuler: (from: GridCell, to: GridCell) => void;
+  /** Tutup penggaris milikku (B5). */
+  clearRuler: () => void;
   /** Niat `asset:add` (C8): daftarkan unggahan ke pustaka (DM, maks 40). */
   addAsset: (name: string, type: TokenType, image: string) => Promise<AssetAddResult>;
   /** Niat `asset:remove` (C8): hapus entri pustaka (DM); token memakai URL tetap. */
@@ -135,6 +144,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   library: [],
   log: [],
   characters: [],
+  rulers: {},
   lastRoll: null,
   isConnected: false,
   status: 'idle',
@@ -398,6 +408,24 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  updateRuler: (from: GridCell, to: GridCell) => {
+    const nickname = get().nickname;
+    if (nickname === null) return;
+    // Optimistik: garis langsung tampil; broadcast server menimpa (idempoten).
+    set((state) => ({ rulers: { ...state.rulers, [nickname]: { from, to } } }));
+    getSocket().emit(CLIENT_EVENTS.RULER_SET, { from, to });
+  },
+  clearRuler: () => {
+    const nickname = get().nickname;
+    if (nickname === null) return;
+    set((state) => {
+      if (!(nickname in state.rulers)) return state;
+      const rulers = { ...state.rulers };
+      delete rulers[nickname];
+      return { rulers };
+    });
+    getSocket().emit(CLIENT_EVENTS.RULER_SET, { from: null, to: null });
+  },
   addAsset: (name: string, type: TokenType, image: string) => {
     const socket = getSocket();
     // Tanpa optimistik: entri masuk lewat broadcast asset:added (C8).
@@ -440,6 +468,16 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     library: state.library,
     log: state.log,
     characters: state.characters,
+    rulers: {},
+  });
+});
+
+socket.on(SERVER_EVENTS.RULER_UPDATED, (payload: RulerUpdatedPayload) => {
+  useRoomStore.setState((state) => {
+    const rulers = { ...state.rulers };
+    if (payload.ruler) rulers[payload.owner] = payload.ruler;
+    else delete rulers[payload.owner];
+    return { rulers };
   });
 });
 
@@ -530,6 +568,7 @@ socket.on('connect', () => {
             library: [],
             log: [],
             characters: [],
+            rulers: {},
             lastRoll: null,
             status: 'error',
             errorMessage: res.error.message,

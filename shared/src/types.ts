@@ -266,6 +266,30 @@ export interface CharacterUpdatedPayload {
 /** Hasil acknowledgment event `character:set` (E1). */
 export type CharacterSetResult = { ok: true } | { ok: false; error: ErrorPayload };
 
+/** Pasangan indeks kotak grid (col,row) — koordinat, bukan piksel (AGENTS §5). */
+export interface GridCell {
+  col: number;
+  row: number;
+}
+
+/** Penggaris jarak aktif (B5): dua ujung dalam indeks kotak. */
+export interface RulerState {
+  from: GridCell;
+  to: GridCell;
+}
+
+/**
+ * Payload event server→klien `ruler:updated` (B5): penggaris milik `owner`;
+ * null = sudah ditutup. Transien — tidak ikut `state:full` maupun persistensi.
+ */
+export interface RulerUpdatedPayload {
+  owner: string;
+  ruler: RulerState | null;
+}
+
+/** Hasil acknowledgment event `ruler:set` (B5). */
+export type RulerSetResult = { ok: true } | { ok: false; error: ErrorPayload };
+
 /** Hasil acknowledgment event `asset:add` (C8). */
 export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };
 

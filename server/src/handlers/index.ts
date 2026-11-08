@@ -8,6 +8,7 @@ import { registerAssetHandlers } from './asset';
 import { registerDiceHandlers } from './dice';
 import { registerCharacterHandlers } from './character';
 import { registerTelemetryHandlers } from './telemetry';
+import { registerRulerHandlers } from './ruler';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -27,4 +28,5 @@ export function registerHandlers(io: Server): void {
   registerDiceHandlers(io);
   registerCharacterHandlers(io);
   registerTelemetryHandlers(io);
+  registerRulerHandlers(io);
 }

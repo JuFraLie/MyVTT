@@ -1,10 +1,12 @@
 import { useRef, useState, type PointerEvent } from 'react';
-import type { GridConfig, RoomMap, Token } from '@myvtt/shared';
+import type { GridCell, GridConfig, RoomMap, RulerState, Token } from '@myvtt/shared';
 import { logTelemetry } from '../../lib/telemetry';
+import { resolveGrid } from '../../lib/grid';
 import FogOverlay from '../fog/FogOverlay';
 import { useFogPaint } from '../fog/useFogPaint';
 import GridOverlay from '../grid/GridOverlay';
 import { useElementSize } from '../grid/useFitScale';
+import RulerOverlay from './RulerOverlay';
 import TokenLayer from '../token/TokenLayer';
 
 interface MapViewportProps {
@@ -19,6 +21,12 @@ interface MapViewportProps {
   fogMode: boolean;
   /** Commit hasil cat — disambungkan ke store.setFog (niat `fog:set`). */
   onFogChange: (cells: string[]) => void;
+  /** Penggaris jarak semua anggota (B5) untuk overlay. */
+  rulers: Record<string, RulerState>;
+  /** Niat `ruler:set` (B5): garis baru/diperpanjang — optimistik di store. */
+  onRulerMove: (from: GridCell, to: GridCell) => void;
+  /** Tutup penggaris milik pemanggil. */
+  onRulerEnd: () => void;
 }
 
 interface View {
@@ -42,6 +50,9 @@ const PAN_THRESHOLD_PX = 8;
 const TAP_SLOP_PX = 10;
 const TAP_MAX_MS = 500;
 
+// Tekan-tahan penggaris (B5): diam 350 ms baru gesture dianggap mengukur.
+const LONG_PRESS_MS = 350;
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
@@ -51,6 +62,7 @@ const round3 = (value: number) => Math.round(value * 1000) / 1000;
  * satu jari DISIHKAN untuk aksi alat (token/fog/ruler — C2/B4/B5),
  * dua jari = pan + pinch-zoom, mouse (desktop) = drag-pan.
  * Semua posisi dalam koordinat piksel gambar; kanvas memakai touch-action: none.
+ * Penggaris (B5): tekan-tahan 350 ms diam lalu seret — hanya sentuh, bukan mouse.
  */
 export default function MapViewport({
   map,
@@ -60,6 +72,9 @@ export default function MapViewport({
   fog,
   fogMode,
   onFogChange,
+  rulers,
+  onRulerMove,
+  onRulerEnd,
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
@@ -76,6 +91,10 @@ export default function MapViewport({
   const pinchRef = useRef<PinchState | null>(null);
   const panRef = useRef<{ x: number; y: number; view: View } | null>(null);
   const tapRef = useRef<{ t: number; x: number; y: number } | null>(null);
+  const longPressRef = useRef<{ timer: number; pointerId: number; x: number; y: number } | null>(
+    null,
+  );
+  const rulerRef = useRef<{ start: GridCell; last: GridCell } | null>(null);
 
   function setView(next: View | null) {
     viewRef.current = next;
@@ -90,6 +109,56 @@ export default function MapViewport({
       : { x: 0, y: 0, s: 1 });
 
   const resolveView = (): View => viewRef.current ?? renderView;
+
+  /** Layar → indeks kotak (mirror konversi fog); null di luar area peta. */
+  function cellAtPoint(
+    clientX: number,
+    clientY: number,
+    rect: DOMRect,
+    view: View,
+  ): GridCell | null {
+    const resolved = resolveGrid(grid);
+    const contentX = (clientX - rect.left - view.x) / view.s;
+    const contentY = (clientY - rect.top - view.y) / view.s;
+    const col = Math.floor((contentX - resolved.offsetX) / resolved.cellPx);
+    const row = Math.floor((contentY - resolved.offsetY) / resolved.cellPx);
+    const maxCol = Math.floor((map.width - resolved.offsetX) / resolved.cellPx) - 1;
+    const maxRow = Math.floor((map.height - resolved.offsetY) / resolved.cellPx) - 1;
+    if (col < 0 || row < 0 || col > maxCol || row > maxRow) return null;
+    return { col, row };
+  }
+
+  function cancelLongPress() {
+    if (longPressRef.current) {
+      window.clearTimeout(longPressRef.current.timer);
+      longPressRef.current = null;
+    }
+  }
+
+  /** Angkat penggaris: kirim penutupan bila sempat aktif (no-op bila tidak). */
+  function endRuler() {
+    cancelLongPress();
+    if (!rulerRef.current) return;
+    rulerRef.current = null;
+    onRulerEnd();
+  }
+
+  /** Jadwalkan tekan-tahan (B5): aktif setelah LONG_PRESS_MS diam di satu kotak. */
+  function scheduleLongPress(clientX: number, clientY: number, pointerId: number, rect: DOMRect) {
+    cancelLongPress();
+    const timer = window.setTimeout(() => {
+      longPressRef.current = null;
+      if (!pointersRef.current.has(pointerId) || pointersRef.current.size !== 1) return;
+      const current = pointersRef.current.get(pointerId);
+      if (!current) return;
+      const cell = cellAtPoint(rect.left + current.x, rect.top + current.y, rect, resolveView());
+      if (!cell) return;
+      tapRef.current = null; // tekan-tahan = aksi penggaris, bukan ketukan salah
+      rulerRef.current = { start: cell, last: cell };
+      onRulerMove(cell, cell);
+    }, LONG_PRESS_MS);
+    longPressRef.current = { timer, pointerId, x: clientX, y: clientY };
+  }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (fit <= 0) return;
@@ -115,6 +184,7 @@ export default function MapViewport({
     if (pointersRef.current.size === 2) {
       // Jari kedua mengalahkan cat: goresan parsial tetap dikomit, lalu pinch.
       fogPaint.abort();
+      endRuler(); // pinch mengambil alih gerakan — penggaris ditutup
       tapRef.current = null; // bukan ketukan: dua jari = gesture, bukan tap
       const points = [...pointersRef.current.values()];
       const a = points[0];
@@ -130,11 +200,19 @@ export default function MapViewport({
       return;
     }
     if (pointersRef.current.size > 2) return;
+    // Tekan-tahan penggaris (B5): hanya di luar mode fog; token sudah
+    // stopPropagation sehingga tidak pernah masuk jalur ini.
+    if (!fogMode) {
+      scheduleLongPress(event.clientX, event.clientY, event.pointerId, rect);
+    }
     // Mode fog: sentuh satu jari diarahkan ke alat cat; selain itu no-op (B3).
     if (fogPaint.begin(event, rect, resolveView())) {
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
+    // Tangkap jari di viewport agar pointerup tetap diterima walau keluar
+    // area (penggaris & deteksi ketukan tidak nyangkut).
+    event.currentTarget.setPointerCapture(event.pointerId);
     // Ketukan satu jari tanpa alat: dicatat sebagai kandidat ketukan salah (G2).
     tapRef.current = { t: performance.now(), x: event.clientX, y: event.clientY };
   }
@@ -161,6 +239,26 @@ export default function MapViewport({
       y: event.clientY - rect.top,
     });
 
+    // Gerakan > slop sebelum 350 ms membatalkan kandidat tekan-tahan.
+    const pending = longPressRef.current;
+    if (
+      pending &&
+      pending.pointerId === event.pointerId &&
+      Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > TAP_SLOP_PX
+    ) {
+      cancelLongPress();
+    }
+
+    // Penggaris aktif (B5): perbarui ujung hanya saat berpindah kotak.
+    const ruler = rulerRef.current;
+    if (ruler && pointersRef.current.size === 1) {
+      const cell = cellAtPoint(event.clientX, event.clientY, rect, resolveView());
+      if (cell && (cell.col !== ruler.last.col || cell.row !== ruler.last.row)) {
+        ruler.last = cell;
+        onRulerMove(ruler.start, cell);
+      }
+    }
+
     const pinch = pinchRef.current;
     if (!pinch || pointersRef.current.size < 2 || pinch.dist < 1) return;
 
@@ -182,6 +280,7 @@ export default function MapViewport({
 
   function handlePointerEnd(event: PointerEvent<HTMLDivElement>) {
     fogPaint.end(); // no-op bila tidak sedang meng-cat; komit goresan selesai
+    endRuler(); // jari angkat = tutup penggaris (juga membatalkan kandidat hold)
     const pinchStart = pinchRef.current;
     const panStart = panRef.current;
     const pinchEnding = pinchStart !== null && pointersRef.current.size === 2;
@@ -255,6 +354,7 @@ export default function MapViewport({
           fogMode={fogMode}
         />
         <FogOverlay map={map} grid={grid} cells={fog} preview={fogPaint.preview} />
+        <RulerOverlay map={map} grid={grid} rulers={rulers} scale={renderView.s} />
       </div>
 
       {fogMode ? (
