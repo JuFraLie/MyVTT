@@ -245,6 +245,7 @@ export const TELEMETRY_TYPES = [
   'task_start',
   'task_end',
   'demographics',
+  'questionnaire',
 ] as const;
 
 export type TelemetryEventType = (typeof TELEMETRY_TYPES)[number];
