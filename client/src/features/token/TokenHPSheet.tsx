@@ -3,6 +3,7 @@ import type { Token } from '@myvtt/shared';
 import BottomSheet from '../../components/BottomSheet';
 import { useRoomStore } from '../room/store';
 import TokenImageControls from './TokenImageControls';
+import TokenSizeRow from './TokenSizeRow';
 
 interface TokenHPSheetProps {
   token: Token;
@@ -116,6 +117,8 @@ export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
         </p>
 
         <TokenImageControls token={token} />
+
+        <TokenSizeRow token={token} />
 
         {canEdit && (
           <button

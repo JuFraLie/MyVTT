@@ -31,6 +31,15 @@ const TAP_THRESHOLD_PX = 8;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
+ * Pusat kotak token: anchor (kiri-atas) digeser ke sel tengah (n-1)/2 sehingga
+ * drag & snap berpusat pada kotak n×n — Medium (n=1) identik dengan sel anchor (C9).
+ */
+function tokenCenter(token: Token, grid: GridConfig): { x: number; y: number } {
+  const n = token.size ?? 1;
+  return cellCenterToPixel(token.col + (n - 1) / 2, token.row + (n - 1) / 2, grid);
+}
+
+/**
  * Lapisan token + drag satu jari (C2). Jari menggerakkan token bebas
  * (posisi optimistik lokal), saat dilepas di-snap ke tengah kotak terdekat
  * lalu dikirim `token:move` (rollback di store bila server menolak).
@@ -59,7 +68,7 @@ export default function TokenLayer({
     if (fogMode || !canManage(token) || scale <= 0) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const origin = cellCenterToPixel(token.col, token.row, resolved);
+    const origin = tokenCenter(token, resolved);
     const next: DragState = {
       id: token.id,
       pointerX: event.clientX,
@@ -99,24 +108,33 @@ export default function TokenLayer({
       return;
     }
 
-    const col = clamp(Math.floor((current.x - resolved.offsetX) / resolved.cellPx), 0, 999);
-    const row = clamp(Math.floor((current.y - resolved.offsetY) / resolved.cellPx), 0, 999);
     const token = tokens.find((item) => item.id === current.id);
+    const n = token?.size ?? 1;
+    // Snap ke kotak terdekat berdasar PUSAT kotak n×n (C9); anchor dijaga
+    // agar seluruh kotak tetap dalam rentang kolom/baris 0..999.
+    const col = clamp(
+      Math.round((current.x - resolved.offsetX) / resolved.cellPx - n / 2),
+      0,
+      1000 - n,
+    );
+    const row = clamp(
+      Math.round((current.y - resolved.offsetY) / resolved.cellPx - n / 2),
+      0,
+      1000 - n,
+    );
     if (token && (token.col !== col || token.row !== row)) {
       void moveToken(current.id, col, row);
     }
   }
 
-  const size = resolved.cellPx * 0.9;
-
   return (
     <div className="absolute inset-0" aria-label="Token di peta">
       {tokens.map((token) => {
+        const n = token.size ?? 1;
+        // Kotak sedikit lebih kecil dari sel total agar tetap ada celah visual.
+        const box = n * resolved.cellPx - resolved.cellPx * 0.1;
         const isDragging = drag?.id === token.id;
-        const center =
-          isDragging && drag
-            ? { x: drag.x, y: drag.y }
-            : cellCenterToPixel(token.col, token.row, resolved);
+        const center = isDragging && drag ? { x: drag.x, y: drag.y } : tokenCenter(token, resolved);
         return (
           <div
             key={token.id}
@@ -124,17 +142,17 @@ export default function TokenLayer({
               canManage(token) ? 'cursor-grab active:cursor-grabbing' : ''
             } ${isDragging ? 'z-10' : ''}`}
             style={{
-              left: center.x - size / 2,
-              top: center.y - size / 2,
-              width: size,
-              height: size,
+              left: center.x - box / 2,
+              top: center.y - box / 2,
+              width: box,
+              height: box,
             }}
             onPointerDown={(event) => startDrag(token, event)}
             onPointerMove={handleMove}
             onPointerUp={handleEnd}
             onPointerCancel={handleEnd}
           >
-            <TokenView token={token} size={size} />
+            <TokenView token={token} size={box} cellPx={resolved.cellPx} />
           </div>
         );
       })}

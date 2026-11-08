@@ -82,6 +82,8 @@ export const tokenAddSchema = z.object({
     }),
   owner: z.string().trim().min(1).max(24).nullish(),
   image: cloudinaryImageUrl.nullish(),
+  /** Ukuran sisi token dalam kotak (C9): 1 Medium, 2 Large, 3 Huge. */
+  size: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
 });
 
 export type TokenAddPayload = z.infer<typeof tokenAddSchema>;
@@ -99,18 +101,23 @@ export const tokenMoveSchema = z.object({
 export type TokenMovePayload = z.infer<typeof tokenMoveSchema>;
 
 /**
- * Payload `token:update` (C3 + C7): ubah HP (DM saja) dan/atau ganti gambar
- * (DM atau pemilik token). `image: null` menghapus gambar. Minimal satu field.
+ * Payload `token:update` (C3 + C7 + C9): ubah HP (DM saja) dan/atau ganti
+ * gambar & ukuran (DM atau pemilik token). `image: null` menghapus gambar.
+ * Minimal satu field.
  */
 export const tokenUpdateSchema = z
   .object({
     id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
     hp: z.number().int().min(0).max(999).optional(),
     image: cloudinaryImageUrl.nullish(),
+    size: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   })
-  .refine((value) => value.hp !== undefined || value.image !== undefined, {
-    message: 'token:update harus membawa hp atau image',
-  });
+  .refine(
+    (value) => value.hp !== undefined || value.image !== undefined || value.size !== undefined,
+    {
+      message: 'token:update harus membawa hp, image, atau size',
+    },
+  );
 
 export type TokenUpdatePayload = z.infer<typeof tokenUpdateSchema>;
 

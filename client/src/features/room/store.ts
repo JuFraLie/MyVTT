@@ -64,12 +64,13 @@ interface RoomState {
   setMap: (map: RoomMap) => Promise<MapSetResult>;
   /** Niat `grid:set` (B2): hanya berhasil jika pemanggil DM. */
   setGrid: (grid: GridConfig) => Promise<GridSetResult>;
-  /** Niat `token:add` (C1/A6/C7): DM; `owner` pemilik & `image` hasil crop (opsional). */
+  /** Niat `token:add` (C1/A6/C7/C9): DM; owner/image opsional, size sisi kotak. */
   addToken: (
     name: string,
     color: string,
     owner: string | null,
     image: string | null,
+    size?: 1 | 2 | 3,
   ) => Promise<TokenAddResult>;
   /**
    * Niat `token:move` (C2): snap hasil drag. Update optimistik dulu,
@@ -83,6 +84,8 @@ interface RoomState {
    * Tanpa optimistik — broadcast `token:updated` memperbarui state.
    */
   setTokenImage: (id: string, image: string | null) => Promise<TokenUpdateResult>;
+  /** Niat `token:update` field `size` (C9): ubah ukuran sisi kotak token. */
+  setTokenSize: (id: string, size: 1 | 2 | 3) => Promise<TokenUpdateResult>;
   /** Niat `token:remove` (A6): hapus token (DM); sinkron lewat `token:removed`. */
   removeToken: (id: string) => Promise<TokenRemoveResult>;
   /**
@@ -190,14 +193,20 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
-  addToken: (name: string, color: string, owner: string | null, image: string | null) => {
+  addToken: (
+    name: string,
+    color: string,
+    owner: string | null,
+    image: string | null,
+    size?: 1 | 2 | 3,
+  ) => {
     const socket = getSocket();
     return new Promise<TokenAddResult>((resolve, reject) => {
       socket
         .timeout(5000)
         .emit(
           CLIENT_EVENTS.TOKEN_ADD,
-          { name, color, owner, image },
+          { name, color, owner, image, size },
           (err: Error | null, res?: TokenAddResult) => {
             if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
             else resolve(res);
@@ -300,6 +309,21 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         );
     });
   },
+  setTokenSize: (id: string, size: 1 | 2 | 3) => {
+    const socket = getSocket();
+    return new Promise<TokenUpdateResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.TOKEN_UPDATE,
+          { id, size },
+          (err: Error | null, res?: TokenUpdateResult) => {
+            if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+            else resolve(res);
+          },
+        );
+    });
+  },
   setFog: (cells: string[]) => {
     const socket = getSocket();
     // Snapshot sebelum optimistik; rollback bila server menolak (DM-only, A6).
@@ -388,11 +412,12 @@ socket.on(SERVER_EVENTS.TOKEN_UPDATED, (payload: TokenUpdatedPayload) => {
   useRoomStore.setState((state) => ({
     tokens: state.tokens.map((token) => {
       if (token.id !== payload.id) return token;
-      // Hanya field terkirim yang berubah (HP C3 / gambar C7).
+      // Hanya field terkirim yang berubah (HP C3 / gambar C7 / ukuran C9).
       return {
         ...token,
         hp: payload.hp ?? token.hp,
         ...(payload.image !== undefined ? { image: payload.image } : {}),
+        ...(payload.size !== undefined ? { size: payload.size } : {}),
       };
     }),
   }));

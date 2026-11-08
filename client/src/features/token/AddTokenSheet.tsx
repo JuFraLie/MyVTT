@@ -3,6 +3,7 @@ import { TOKEN_COLORS } from '@myvtt/shared';
 import BottomSheet from '../../components/BottomSheet';
 import { useRoomStore } from '../room/store';
 import LibraryStrip from './LibraryStrip';
+import SizeChoiceRow from './SizeChoiceRow';
 import TokenImagePicker from './TokenImagePicker';
 import { uploadTokenBlob } from './uploadToken';
 
@@ -29,6 +30,7 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
   const [owner, setOwner] = useState<string | null>(null);
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [libraryImage, setLibraryImage] = useState<string | null>(null);
+  const [size, setSize] = useState<1 | 2 | 3>(1);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -58,7 +60,7 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
       } else {
         image = libraryImage;
       }
-      const result = await addToken(name.trim(), color, owner, image);
+      const result = await addToken(name.trim(), color, owner, image, size);
       if (!result.ok) throw new Error(result.error.message);
       setName('');
       setOwner(null);
@@ -152,6 +154,8 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
             if (blob !== null) setLibraryImage(null); // unggah baru menggantikan pilihan pustaka
           }}
         />
+
+        <SizeChoiceRow value={size} onChange={setSize} label="Ukuran token" />
 
         <button
           type="button"

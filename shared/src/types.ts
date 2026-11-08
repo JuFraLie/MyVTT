@@ -62,6 +62,11 @@ export interface Token {
    * hilang/null = token memakai fallback warna + inisial (C1).
    */
   image?: string | null;
+  /**
+   * Sisi token dalam kotak grid (C9): 1 = Medium, 2 = Large, 3 = Huge.
+   * Hilang = Medium (dokumen lama); anchor (col,row) = kotak kiri-atas.
+   */
+  size?: 1 | 2 | 3;
 }
 
 /** Payload bawaan event server→klien `error`. */
@@ -147,13 +152,14 @@ export interface TokenMovedPayload {
 export type TokenMoveResult = { ok: true } | { ok: false; error: ErrorPayload };
 
 /**
- * Payload event server→klien `token:updated` (C3/C7): HP dan/atau gambar
- * token tersinkron. Hanya field yang dikirim yang berubah.
+ * Payload event server→klien `token:updated` (C3/C7/C9): HP, gambar, dan/atau
+ * ukuran token tersinkron. Hanya field yang dikirim yang berubah.
  */
 export interface TokenUpdatedPayload {
   id: string;
   hp?: number;
   image?: string | null;
+  size?: 1 | 2 | 3;
 }
 
 /** Hasil acknowledgment event `token:update` (C3). */

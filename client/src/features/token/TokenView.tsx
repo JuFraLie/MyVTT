@@ -3,8 +3,10 @@ import type { Token } from '@myvtt/shared';
 
 interface TokenViewProps {
   token: Token;
-  /** Ukuran token dalam koordinat piksel gambar (mengisi elemen induk). */
+  /** Lebar kotak token dalam koordinat piksel gambar (mengisi elemen induk). */
   size: number;
+  /** Lebar satu sel — membatasi skala inisial/badge agar tidak membesar penuh pada token 2×2/3×3 (C9). */
+  cellPx: number;
 }
 
 /**
@@ -12,11 +14,13 @@ interface TokenViewProps {
  * Bila URL gambar gagal dimuat, lapisan gambar dibuang dan warna + inisial
  * tetap tampil (fallback sesuai AGENTS.md §12). Badge HP (C3) di tepi bawah.
  */
-export default function TokenView({ token, size }: TokenViewProps) {
+export default function TokenView({ token, size, cellPx }: TokenViewProps) {
   // Simpan URL yang gagal agar perubahan gambar memberi percobaan baru
   // tanpa useEffect (pola "adjust during render").
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const imageUrl = token.image;
+  // Elemen dalam (inisial/badge) berhenti membesar setelah ~1,5 sel (C9).
+  const inner = Math.min(size, cellPx * 1.5);
 
   return (
     <div
@@ -24,9 +28,9 @@ export default function TokenView({ token, size }: TokenViewProps) {
       aria-label={`${token.name}, HP ${token.hp}`}
       className="flex h-full w-full items-center justify-center rounded-full font-bold text-white select-none"
       style={{
-        fontSize: size * 0.42,
+        fontSize: inner * 0.42,
         backgroundColor: token.color,
-        boxShadow: `0 0 0 ${Math.max(1, size * 0.05)}px rgba(15, 23, 42, 0.9)`,
+        boxShadow: `0 0 0 ${Math.max(1, cellPx * 0.05)}px rgba(15, 23, 42, 0.9)`,
       }}
     >
       {token.name.charAt(0).toUpperCase()}
@@ -43,7 +47,7 @@ export default function TokenView({ token, size }: TokenViewProps) {
         className={`absolute -bottom-[12%] left-1/2 -translate-x-1/2 rounded-full border border-slate-700 bg-slate-900/95 px-[0.35em] font-semibold ${
           token.hp <= 0 ? 'text-red-400' : 'text-slate-100'
         }`}
-        style={{ fontSize: size * 0.28, lineHeight: 1.4 }}
+        style={{ fontSize: inner * 0.28, lineHeight: 1.4 }}
       >
         {token.hp}
       </span>

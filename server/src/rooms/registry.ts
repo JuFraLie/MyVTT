@@ -221,7 +221,8 @@ export function setRoomGrid(code: string, grid: GridConfig): void {
 
 /**
  * Menambah token dasar (C1). Posisi spawn dihitung server dari grid
- * (atau grid bawaan) — mulai dari tengah peta, digeser agar tidak menumpuk.
+ * (atau grid bawaan) — mulai dari tengah peta, digeser agar tidak menumpuk;
+ * untuk ukuran >1 kotak (C9) anchor dikunci agar kotak muat di dalam peta.
  * `owner` (A6) = nama panggilan pemain pemilik; null = token DM/monster.
  * `image` (C7) = URL hasil crop lingkaran; null = warna + inisial.
  */
@@ -231,6 +232,7 @@ export function addToken(
   color: string,
   owner: string | null,
   image: string | null,
+  size: 1 | 2 | 3,
 ): Token | null {
   const room = rooms.get(code);
   if (!room || !room.map) return null;
@@ -242,11 +244,12 @@ export function addToken(
     id: randomUUID(),
     name,
     color,
-    col: slot % cols,
-    row: Math.min(rows - 1, Math.floor(slot / cols)),
+    col: Math.max(0, Math.min(slot % cols, cols - size)),
+    row: Math.max(0, Math.min(Math.min(rows - 1, Math.floor(slot / cols)), rows - size)),
     hp: DEFAULT_TOKEN_HP,
     owner,
     image,
+    size,
   };
   room.tokens.push(token);
   persist(code);
@@ -293,16 +296,17 @@ export function moveToken(code: string, id: string, col: number, row: number): b
   return true;
 }
 
-/** Mengubah HP dan/atau gambar token (C3/C7); false bila id tidak ditemukan. */
+/** Mengubah HP dan/atau gambar & ukuran token (C3/C7/C9); false bila id tak ada. */
 export function updateToken(
   code: string,
   id: string,
-  patch: { hp?: number; image?: string | null },
+  patch: { hp?: number; image?: string | null; size?: 1 | 2 | 3 },
 ): boolean {
   const token = rooms.get(code)?.tokens.find((item) => item.id === id);
   if (!token) return false;
   if (patch.hp !== undefined) token.hp = patch.hp;
   if (patch.image !== undefined) token.image = patch.image;
+  if (patch.size !== undefined) token.size = patch.size;
   persist(code);
   return true;
 }
