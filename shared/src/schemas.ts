@@ -130,3 +130,22 @@ export const fogSetSchema = z.object({
 });
 
 export type FogSetPayload = z.infer<typeof fogSetSchema>;
+
+/**
+ * Payload `asset:add` (C8): daftarkan gambar token hasil unggah ke pustaka
+ * ruang agar bisa dipilih ulang/diklon tanpa unggah lagi. DM saja.
+ */
+export const assetAddSchema = z.object({
+  name: z.string().trim().min(1).max(24),
+  type: z.enum(['pemain', 'monster']),
+  image: cloudinaryImageUrl,
+});
+
+export type AssetAddPayload = z.infer<typeof assetAddSchema>;
+
+/** Payload `asset:remove` (C8): hapus entri pustaka; token yang memakainya tidak ikut hilang. */
+export const assetRemoveSchema = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+});
+
+export type AssetRemovePayload = z.infer<typeof assetRemoveSchema>;

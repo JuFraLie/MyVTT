@@ -30,7 +30,7 @@ export function connectDb(): Promise<typeof mongoose | null> {
   return connecting;
 }
 
-type RoomData = Pick<PersistedRoom, 'map' | 'grid' | 'tokens' | 'fog'>;
+type RoomData = Pick<PersistedRoom, 'map' | 'grid' | 'tokens' | 'fog' | 'library'>;
 
 /**
  * Simpan state ruang (write-through setelah mutasi A5).
@@ -58,6 +58,7 @@ export async function loadRoom(code: string): Promise<RoomData | null> {
       grid: doc.grid ?? null,
       tokens: doc.tokens ?? [],
       fog: doc.fog ?? [],
+      library: doc.library ?? [],
     };
   } catch (error) {
     console.warn(`[db] gagal baca ruang ${code}:`, error);

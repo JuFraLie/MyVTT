@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TOKEN_COLORS } from '@myvtt/shared';
 import BottomSheet from '../../components/BottomSheet';
 import { useRoomStore } from '../room/store';
+import LibraryStrip from './LibraryStrip';
 import TokenImagePicker from './TokenImagePicker';
 import { uploadTokenBlob } from './uploadToken';
 
@@ -14,34 +15,48 @@ const inputClass =
   'min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-base text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none';
 
 /**
- * Bottom sheet tambah token (C1 + A6 + C7): nama, warna, pemilih "Milik",
- * dan gambar crop lingkaran (opsional). Hanya dibuka DM; posisi spawn
- * dihitung server (tidak dikirim klien).
+ * Bottom sheet tambah token (C1 + A6 + C7 + C8): strip pustaka untuk klon
+ * tanpa unggah ulang, nama, warna, pemilih "Milik", dan gambar crop lingkaran.
+ * Hanya dibuka DM; posisi spawn dihitung server (tidak dikirim klien).
  */
 export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
   const addToken = useRoomStore((state) => state.addToken);
+  const addAsset = useRoomStore((state) => state.addAsset);
   const members = useRoomStore((state) => state.members);
   const roomCode = useRoomStore((state) => state.code);
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(TOKEN_COLORS[4]);
   const [owner, setOwner] = useState<string | null>(null);
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [libraryImage, setLibraryImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const initial = name.trim().charAt(0).toUpperCase();
   const players = members.filter((member) => member.role === 'player');
 
+  /** Pilihan dari pustaka (C8) mengisi form; unggah baru saling menggantikan. */
+  function handleLibraryUse(image: string | null, pickedName: string | null) {
+    setLibraryImage(image);
+    if (pickedName !== null) setName(pickedName);
+    if (image !== null) setImageBlob(null);
+  }
+
   async function handleAdd() {
     if (saving || name.trim().length === 0) return;
     setSaving(true);
     setErrorMessage(null);
     try {
-      // Unggah gambar dulu (C7) bila dipilih; gagal unggah = batal menambah.
       let image: string | null = null;
       if (imageBlob) {
+        // Unggah dulu (C7), lalu daftarkan ke pustaka (C8) — gagal = batal menambah
+        // agar tidak ada unggahan yang tidak terlacak saat pustaka penuh.
         if (!roomCode) throw new Error('Kode ruang tidak ditemukan.');
         image = await uploadTokenBlob(imageBlob, roomCode);
+        const saved = await addAsset(name.trim(), owner ? 'pemain' : 'monster', image);
+        if (!saved.ok) throw new Error(saved.error.message);
+      } else {
+        image = libraryImage;
       }
       const result = await addToken(name.trim(), color, owner, image);
       if (!result.ok) throw new Error(result.error.message);
@@ -78,6 +93,8 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
   return (
     <BottomSheet open={open} title="Tambah Token" onClose={onClose}>
       <div className="space-y-4">
+        <LibraryStrip onUse={handleLibraryUse} />
+
         <div className="flex items-center gap-4">
           <span
             aria-hidden="true"
@@ -128,7 +145,13 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
           )}
         </div>
 
-        <TokenImagePicker value={imageBlob} onChange={setImageBlob} />
+        <TokenImagePicker
+          value={imageBlob}
+          onChange={(blob) => {
+            setImageBlob(blob);
+            if (blob !== null) setLibraryImage(null); // unggah baru menggantikan pilihan pustaka
+          }}
+        />
 
         <button
           type="button"

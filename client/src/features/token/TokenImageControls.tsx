@@ -19,6 +19,7 @@ export default function TokenImageControls({ token }: TokenImageControlsProps) {
   const nickname = useRoomStore((state) => state.nickname);
   const roomCode = useRoomStore((state) => state.code);
   const setTokenImage = useRoomStore((state) => state.setTokenImage);
+  const addAsset = useRoomStore((state) => state.addAsset);
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -42,6 +43,12 @@ export default function TokenImageControls({ token }: TokenImageControlsProps) {
     setErrorMessage(null);
     try {
       const url = await uploadTokenBlob(blob, roomCode);
+      // DM juga mendaftarkan unggahan ke pustaka (C8); pemain hanya menempel
+      // ke token miliknya (C7) — pustaka dikelola DM (A6).
+      if (role === 'dm') {
+        const saved = await addAsset(token.name, token.owner ? 'pemain' : 'monster', url);
+        if (!saved.ok) throw new Error(saved.error.message);
+      }
       const result = await setTokenImage(token.id, url);
       if (!result.ok) throw new Error(result.error.message);
     } catch (error) {

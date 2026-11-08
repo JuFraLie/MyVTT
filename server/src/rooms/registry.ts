@@ -1,12 +1,14 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
   DEFAULT_GRID,
+  type AssetEntry,
   type GridConfig,
   type Role,
   type RoomFullState,
   type RoomMap,
   type RoomMember,
   type Token,
+  type TokenType,
 } from '@myvtt/shared';
 import { loadRoom, saveRoom } from '../db';
 
@@ -29,6 +31,8 @@ interface RoomRecord {
   tokens: Token[];
   /** Sel grid tertutup fog, kunci "col,row" (B4). */
   fog: string[];
+  /** Pustaka token ruang (C8): unggahan gambar yang bisa diklon. */
+  library: AssetEntry[];
 }
 
 interface Membership {
@@ -50,6 +54,7 @@ function persist(code: string): void {
     grid: room.grid,
     tokens: room.tokens,
     fog: room.fog,
+    library: room.library,
   });
 }
 
@@ -82,6 +87,7 @@ export function createRoom(): string {
         grid: null,
         tokens: [],
         fog: [],
+        library: [],
       });
       persist(code);
       return code;
@@ -143,7 +149,15 @@ export function getRoomState(code: string): RoomFullState | null {
       members.push({ socketId, nickname: membership.nickname, role: membership.role });
     }
   }
-  return { code, members, map: room.map, grid: room.grid, tokens: room.tokens, fog: room.fog };
+  return {
+    code,
+    members,
+    map: room.map,
+    grid: room.grid,
+    tokens: room.tokens,
+    fog: room.fog,
+    library: room.library,
+  };
 }
 
 /** Mengganti peta aktif ruang (B1). */
@@ -162,6 +176,38 @@ export function setRoomFog(code: string, cells: string[]): void {
     room.fog = cells;
     persist(code);
   }
+}
+
+// Batas entri pustaka per ruang (AGENTS §12: maks 40 gambar token).
+const ASSET_LIMIT = 40;
+
+/** Menambah entri pustaka (C8); null bila ruang tak ada atau batas 40 tercapai. */
+export function addAsset(
+  code: string,
+  name: string,
+  type: TokenType,
+  image: string,
+): AssetEntry | null {
+  const room = rooms.get(code);
+  if (!room || room.library.length >= ASSET_LIMIT) return null;
+  const entry: AssetEntry = { id: randomUUID(), name, type, image };
+  room.library.push(entry);
+  persist(code);
+  return entry;
+}
+
+/**
+ * Menghapus entri pustaka (C8); false bila id tidak ditemukan.
+ * Token yang memakai URL yang sama TIDAK ikut dihapus.
+ */
+export function removeAsset(code: string, id: string): boolean {
+  const room = rooms.get(code);
+  if (!room) return false;
+  const index = room.library.findIndex((entry) => entry.id === id);
+  if (index < 0) return false;
+  room.library.splice(index, 1);
+  persist(code);
+  return true;
 }
 
 /** Mengganti parameter grid ruang (B2). */

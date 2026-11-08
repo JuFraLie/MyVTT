@@ -24,6 +24,7 @@ export const CLIENT_EVENTS = {
 export const SERVER_EVENTS = {
   STATE_FULL: 'state:full',
   ASSET_ADDED: 'asset:added',
+  ASSET_REMOVED: 'asset:removed',
   TOKEN_MOVED: 'token:moved',
   TOKEN_UPDATED: 'token:updated',
   TOKEN_REMOVED: 'token:removed',

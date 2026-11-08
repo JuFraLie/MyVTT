@@ -4,6 +4,7 @@ import { registerMapHandlers } from './map';
 import { registerGridHandlers } from './grid';
 import { registerTokenHandlers } from './token';
 import { registerFogHandlers } from './fog';
+import { registerAssetHandlers } from './asset';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -19,4 +20,5 @@ export function registerHandlers(io: Server): void {
   registerGridHandlers(io);
   registerTokenHandlers(io);
   registerFogHandlers(io);
+  registerAssetHandlers(io);
 }

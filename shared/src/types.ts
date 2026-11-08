@@ -70,6 +70,17 @@ export interface ErrorPayload {
   message: string;
 }
 
+/** Tipe label entri pustaka token (C8): pemain atau monster. */
+export type TokenType = 'pemain' | 'monster';
+
+/** Entri pustaka token ruang (C8): satu gambar unggahan yang bisa dipakai ulang. */
+export interface AssetEntry {
+  id: string;
+  name: string;
+  type: TokenType;
+  image: string;
+}
+
 /**
  * Hasil acknowledgment event `room:create` (A1).
  * Kode 6 karakter unik di server, dibagikan ke pemain lewat fitur A2.
@@ -105,6 +116,8 @@ export interface RoomFullState {
   tokens: Token[];
   /** Sel grid yang tertutup fog, kunci "col,row" (B4); [] = tidak ada fog. */
   fog: string[];
+  /** Pustaka token ruang (C8); daftar gambar unggahan yang bisa diklon. */
+  library: AssetEntry[];
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -161,3 +174,19 @@ export type FogSetResult = { ok: true } | { ok: false; error: ErrorPayload };
 export interface FogUpdatedPayload {
   cells: string[];
 }
+
+/** Payload event server→klien `asset:added` (C8): entri baru di pustaka. */
+export interface AssetAddedPayload {
+  entry: AssetEntry;
+}
+
+/** Payload event server→klien `asset:removed` (C8): entri keluar dari pustaka. */
+export interface AssetRemovedPayload {
+  id: string;
+}
+
+/** Hasil acknowledgment event `asset:add` (C8). */
+export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Hasil acknowledgment event `asset:remove` (C8). */
+export type AssetRemoveResult = { ok: true } | { ok: false; error: ErrorPayload };

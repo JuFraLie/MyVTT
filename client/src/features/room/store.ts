@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type AssetAddResult,
+  type AssetAddedPayload,
+  type AssetEntry,
+  type AssetRemoveResult,
+  type AssetRemovedPayload,
   type GridConfig,
   type GridSetResult,
   type FogSetResult,
@@ -14,6 +19,7 @@ import {
   type RoomMap,
   type RoomMember,
   type Token,
+  type TokenType,
   type TokenAddResult,
   type TokenMoveResult,
   type TokenMovedPayload,
@@ -46,6 +52,8 @@ interface RoomState {
   tokens: Token[];
   /** Sel grid tertutup fog, kunci "col,row" (B4); [] = tidak ada fog. */
   fog: string[];
+  /** Pustaka token ruang (C8); diperbarui state:full & asset:added/removed. */
+  library: AssetEntry[];
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -82,6 +90,10 @@ interface RoomState {
    * Optimistik + rollback; sinkron lewat broadcast `fog:updated`.
    */
   setFog: (cells: string[]) => Promise<FogSetResult>;
+  /** Niat `asset:add` (C8): daftarkan unggahan ke pustaka (DM, maks 40). */
+  addAsset: (name: string, type: TokenType, image: string) => Promise<AssetAddResult>;
+  /** Niat `asset:remove` (C8): hapus entri pustaka (DM); token memakai URL tetap. */
+  removeAsset: (id: string) => Promise<AssetRemoveResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -93,6 +105,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   grid: null,
   tokens: [],
   fog: [],
+  library: [],
   isConnected: false,
   status: 'idle',
   errorMessage: null,
@@ -306,6 +319,33 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  addAsset: (name: string, type: TokenType, image: string) => {
+    const socket = getSocket();
+    // Tanpa optimistik: entri masuk lewat broadcast asset:added (C8).
+    return new Promise<AssetAddResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.ASSET_ADD,
+          { name, type, image },
+          (err: Error | null, res?: AssetAddResult) => {
+            if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+            else resolve(res);
+          },
+        );
+    });
+  },
+  removeAsset: (id: string) => {
+    const socket = getSocket();
+    return new Promise<AssetRemoveResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.ASSET_REMOVE, { id }, (err: Error | null, res?: AssetRemoveResult) => {
+          if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+          else resolve(res);
+        });
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
@@ -318,11 +358,22 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     grid: state.grid,
     tokens: state.tokens,
     fog: state.fog,
+    library: state.library,
   });
 });
 
 socket.on(SERVER_EVENTS.FOG_UPDATED, (payload: FogUpdatedPayload) => {
   useRoomStore.setState({ fog: payload.cells });
+});
+
+socket.on(SERVER_EVENTS.ASSET_ADDED, (payload: AssetAddedPayload) => {
+  useRoomStore.setState((state) => ({ library: [...state.library, payload.entry] }));
+});
+
+socket.on(SERVER_EVENTS.ASSET_REMOVED, (payload: AssetRemovedPayload) => {
+  useRoomStore.setState((state) => ({
+    library: state.library.filter((entry) => entry.id !== payload.id),
+  }));
 });
 
 socket.on(SERVER_EVENTS.TOKEN_MOVED, (payload: TokenMovedPayload) => {
@@ -377,6 +428,7 @@ socket.on('connect', () => {
             grid: null,
             tokens: [],
             fog: [],
+            library: [],
             status: 'error',
             errorMessage: res.error.message,
           });
