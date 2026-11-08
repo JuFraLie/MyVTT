@@ -1,3 +1,5 @@
+import { requestSignature, uploadSignedBlob } from '../../lib/cloudinary';
+
 const MAX_MAP_BYTES = 15 * 1024 * 1024;
 const MAX_DIMENSION = 4096;
 const WEBP_QUALITY = 0.85;
@@ -7,15 +9,6 @@ export interface ProcessedMap {
   blob: Blob;
   width: number;
   height: number;
-}
-
-interface SignatureResponse {
-  cloudName: string;
-  apiKey: string;
-  uploadUrl: string;
-  timestamp: number;
-  signature: string;
-  folder: string;
 }
 
 function loadImage(file: File): Promise<HTMLImageElement> {
@@ -65,37 +58,8 @@ export async function processMapFile(file: File): Promise<ProcessedMap> {
   return { blob, width, height };
 }
 
-/**
- * Unggah hasil kompresi langsung ke Cloudinary memakai tanda tangan dari server
- * (AGENTS.md §12). Mengembalikan URL CDN hasil unggahan.
- */
+/** Unggah hasil kompresi peta langsung ke Cloudinary (B1). */
 export async function uploadMapBlob(blob: Blob, roomCode: string): Promise<string> {
-  const signatureRes = await fetch('/api/assets/signature', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ roomCode, kind: 'map' }),
-  });
-  if (!signatureRes.ok) {
-    const body = (await signatureRes.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(body?.message ?? 'Gagal meminta tanda tangan unggah.');
-  }
-  const signature = (await signatureRes.json()) as SignatureResponse;
-
-  const form = new FormData();
-  form.append('file', new File([blob], 'map.webp', { type: 'image/webp' }));
-  form.append('api_key', signature.apiKey);
-  form.append('timestamp', String(signature.timestamp));
-  form.append('signature', signature.signature);
-  form.append('folder', signature.folder);
-  form.append('format', 'webp');
-
-  const uploadRes = await fetch(signature.uploadUrl, { method: 'POST', body: form });
-  const data = (await uploadRes.json().catch(() => null)) as {
-    secure_url?: string;
-    error?: { message?: string };
-  } | null;
-  if (!uploadRes.ok || !data?.secure_url) {
-    throw new Error(data?.error?.message ?? 'Unggah ke Cloudinary gagal.');
-  }
-  return data.secure_url;
+  const signature = await requestSignature(roomCode, 'map');
+  return uploadSignedBlob(blob, 'map.webp', signature);
 }

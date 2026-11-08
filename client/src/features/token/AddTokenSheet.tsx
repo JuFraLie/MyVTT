@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { TOKEN_COLORS } from '@myvtt/shared';
 import BottomSheet from '../../components/BottomSheet';
 import { useRoomStore } from '../room/store';
+import TokenImagePicker from './TokenImagePicker';
+import { uploadTokenBlob } from './uploadToken';
 
 interface AddTokenSheetProps {
   open: boolean;
@@ -12,16 +14,18 @@ const inputClass =
   'min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-base text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none';
 
 /**
- * Bottom sheet tambah token (C1 + A6): nama, warna preset, dan pemilih
- * "Milik" (DM/Monster atau salah satu pemain di ruang). Hanya dibuka DM;
- * posisi spawn dihitung server (tidak dikirim klien).
+ * Bottom sheet tambah token (C1 + A6 + C7): nama, warna, pemilih "Milik",
+ * dan gambar crop lingkaran (opsional). Hanya dibuka DM; posisi spawn
+ * dihitung server (tidak dikirim klien).
  */
 export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
   const addToken = useRoomStore((state) => state.addToken);
   const members = useRoomStore((state) => state.members);
+  const roomCode = useRoomStore((state) => state.code);
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(TOKEN_COLORS[4]);
   const [owner, setOwner] = useState<string | null>(null);
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -33,10 +37,17 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
     setSaving(true);
     setErrorMessage(null);
     try {
-      const result = await addToken(name.trim(), color, owner);
+      // Unggah gambar dulu (C7) bila dipilih; gagal unggah = batal menambah.
+      let image: string | null = null;
+      if (imageBlob) {
+        if (!roomCode) throw new Error('Kode ruang tidak ditemukan.');
+        image = await uploadTokenBlob(imageBlob, roomCode);
+      }
+      const result = await addToken(name.trim(), color, owner, image);
       if (!result.ok) throw new Error(result.error.message);
       setName('');
       setOwner(null);
+      setImageBlob(null);
       onClose();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Gagal menambah token.');
@@ -116,6 +127,8 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
             <p className="mt-1 text-xs text-slate-500">Belum ada pemain di ruang ini.</p>
           )}
         </div>
+
+        <TokenImagePicker value={imageBlob} onChange={setImageBlob} />
 
         <button
           type="button"

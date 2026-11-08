@@ -57,6 +57,11 @@ export interface Token {
    * Pemain hanya boleh menggerakkan token miliknya sendiri.
    */
   owner: string | null;
+  /**
+   * URL gambar token hasil unggah bulat 256x256 WebP (C7);
+   * hilang/null = token memakai fallback warna + inisial (C1).
+   */
+  image?: string | null;
 }
 
 /** Payload bawaan event server→klien `error`. */
@@ -128,10 +133,14 @@ export interface TokenMovedPayload {
 /** Hasil acknowledgment event `token:move` (C2). */
 export type TokenMoveResult = { ok: true } | { ok: false; error: ErrorPayload };
 
-/** Payload event server→klien `token:updated` (C3): HP token tersinkron. */
+/**
+ * Payload event server→klien `token:updated` (C3/C7): HP dan/atau gambar
+ * token tersinkron. Hanya field yang dikirim yang berubah.
+ */
 export interface TokenUpdatedPayload {
   id: string;
-  hp: number;
+  hp?: number;
+  image?: string | null;
 }
 
 /** Hasil acknowledgment event `token:update` (C3). */

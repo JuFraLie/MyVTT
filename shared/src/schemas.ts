@@ -26,25 +26,28 @@ export const roomJoinSchema = z.object({
 
 export type RoomJoinPayload = z.infer<typeof roomJoinSchema>;
 
+/** URL aset tepercaya: hanya CDN Cloudinary (AGENTS.md §12). */
+const cloudinaryImageUrl = z
+  .url()
+  .max(512)
+  .regex(/^https:\/\/res\.cloudinary\.com\//);
+
 /**
  * Payload `map:set` (B1): hasil unggah peta yang sudah dikompres di klien.
  * URL wajib Cloudinary agar state bersama hanya berisi aset CDN tepercaya.
  */
 export const mapSetSchema = z.object({
-  url: z
-    .url()
-    .max(512)
-    .regex(/^https:\/\/res\.cloudinary\.com\//),
+  url: cloudinaryImageUrl,
   width: z.number().int().min(1).max(4096),
   height: z.number().int().min(1).max(4096),
 });
 
 export type MapSetPayload = z.infer<typeof mapSetSchema>;
 
-/** Permintaan tanda tangan unggah Cloudinary (B1, REST `/api/assets/signature`). */
+/** Permintaan tanda tangan unggah Cloudinary (B1/C7, REST `/api/assets/signature`). */
 export const assetSignatureRequestSchema = z.object({
   roomCode: z.string().regex(/^[A-HJ-NP-TV-Z2-9]{6}$/),
-  kind: z.enum(['map']),
+  kind: z.enum(['map', 'token']),
 });
 
 export type AssetSignatureRequest = z.infer<typeof assetSignatureRequestSchema>;
@@ -65,9 +68,9 @@ export const gridSetSchema = z.object({
 export type GridSetPayload = z.infer<typeof gridSetSchema>;
 
 /**
- * Payload `token:add` (C1 + A6): DM menambah token dasar (warna + inisial).
- * Posisi (col,row) dihitung server agar spawn tidak menumpuk;
- * `owner` = nama panggilan pemain pemilik (null = token DM/monster).
+ * Payload `token:add` (C1 + A6 + C7): DM menambah token dasar (warna + inisial)
+ * atau dengan gambar hasil crop lingkaran. Posisi (col,row) dihitung server
+ * agar spawn tidak menumpuk; `owner` = nama panggilan pemain pemilik.
  */
 export const tokenAddSchema = z.object({
   name: z.string().trim().min(1).max(24),
@@ -78,6 +81,7 @@ export const tokenAddSchema = z.object({
       message: 'warna harus salah satu dari preset',
     }),
   owner: z.string().trim().min(1).max(24).nullish(),
+  image: cloudinaryImageUrl.nullish(),
 });
 
 export type TokenAddPayload = z.infer<typeof tokenAddSchema>;
@@ -94,11 +98,19 @@ export const tokenMoveSchema = z.object({
 
 export type TokenMovePayload = z.infer<typeof tokenMoveSchema>;
 
-/** Payload `token:update` (C3): ubah HP token (ketuk −/+ atau ketik angka). */
-export const tokenUpdateSchema = z.object({
-  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
-  hp: z.number().int().min(0).max(999),
-});
+/**
+ * Payload `token:update` (C3 + C7): ubah HP (DM saja) dan/atau ganti gambar
+ * (DM atau pemilik token). `image: null` menghapus gambar. Minimal satu field.
+ */
+export const tokenUpdateSchema = z
+  .object({
+    id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+    hp: z.number().int().min(0).max(999).optional(),
+    image: cloudinaryImageUrl.nullish(),
+  })
+  .refine((value) => value.hp !== undefined || value.image !== undefined, {
+    message: 'token:update harus membawa hp atau image',
+  });
 
 export type TokenUpdatePayload = z.infer<typeof tokenUpdateSchema>;
 

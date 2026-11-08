@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Token } from '@myvtt/shared';
 import BottomSheet from '../../components/BottomSheet';
 import { useRoomStore } from '../room/store';
+import TokenImageControls from './TokenImageControls';
 
 interface TokenHPSheetProps {
   token: Token;
@@ -12,8 +13,8 @@ const clampHp = (value: number) => Math.min(999, Math.max(0, value));
 
 /**
  * Bottom sheet HP token (C3): angka besar, tombol −/+ (>= 44 px, zona
- * jempol), dan input angka. Tiap perubahan dikirim `token:update` (DM);
- * pemain hanya melihat hingga kepemilikan token ada (C7/C8, izin A6).
+ * jempol), dan input angka. DM mengubah HP; gambar token (C7) boleh DM
+ * atau pemiliknya lewat TokenImageControls (izin A6).
  */
 export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
   const role = useRoomStore((state) => state.role);
@@ -113,6 +114,8 @@ export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
             ? 'Ketuk −/+ atau ketik angka; perubahan langsung tersinkron.'
             : 'HP hanya dapat diubah oleh DM.'}
         </p>
+
+        <TokenImageControls token={token} />
 
         {canEdit && (
           <button

@@ -177,12 +177,14 @@ export function setRoomGrid(code: string, grid: GridConfig): void {
  * Menambah token dasar (C1). Posisi spawn dihitung server dari grid
  * (atau grid bawaan) — mulai dari tengah peta, digeser agar tidak menumpuk.
  * `owner` (A6) = nama panggilan pemain pemilik; null = token DM/monster.
+ * `image` (C7) = URL hasil crop lingkaran; null = warna + inisial.
  */
 export function addToken(
   code: string,
   name: string,
   color: string,
   owner: string | null,
+  image: string | null,
 ): Token | null {
   const room = rooms.get(code);
   if (!room || !room.map) return null;
@@ -198,6 +200,7 @@ export function addToken(
     row: Math.min(rows - 1, Math.floor(slot / cols)),
     hp: DEFAULT_TOKEN_HP,
     owner,
+    image,
   };
   room.tokens.push(token);
   persist(code);
@@ -244,13 +247,37 @@ export function moveToken(code: string, id: string, col: number, row: number): b
   return true;
 }
 
-/** Mengubah HP token (C3); false bila id tidak ditemukan. */
-export function updateTokenHp(code: string, id: string, hp: number): boolean {
+/** Mengubah HP dan/atau gambar token (C3/C7); false bila id tidak ditemukan. */
+export function updateToken(
+  code: string,
+  id: string,
+  patch: { hp?: number; image?: string | null },
+): boolean {
   const token = rooms.get(code)?.tokens.find((item) => item.id === id);
   if (!token) return false;
-  token.hp = hp;
+  if (patch.hp !== undefined) token.hp = patch.hp;
+  if (patch.image !== undefined) token.image = patch.image;
   persist(code);
   return true;
+}
+
+// Batas gambar token berbeda per ruang (AGENTS.md §12).
+const TOKEN_IMAGE_LIMIT = 40;
+
+/**
+ * Apakah menyetel `image` pada token masih dalam batas 40 gambar per ruang?
+ * `tokenId` null = token baru. Gambar lama token yang sama dihitung ulang
+ * (ganti gambar tidak menambah jumlah), dan URL identik tidak dihitung ganda.
+ */
+export function canSetTokenImage(code: string, tokenId: string | null, image: string): boolean {
+  const room = rooms.get(code);
+  if (!room) return false;
+  const urls = new Set<string>();
+  for (const token of room.tokens) {
+    if (token.id !== tokenId && token.image) urls.add(token.image);
+  }
+  urls.add(image);
+  return urls.size <= TOKEN_IMAGE_LIMIT;
 }
 
 export function getMembership(

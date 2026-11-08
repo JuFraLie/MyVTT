@@ -15,6 +15,7 @@ import {
 import { canEditRoom, canManageToken } from '../rooms/permissions';
 import {
   addToken,
+  canSetTokenImage,
   getMembership,
   getToken,
   getRoom,
@@ -22,7 +23,7 @@ import {
   isPlayerInRoom,
   moveToken,
   removeToken,
-  updateTokenHp,
+  updateToken,
 } from '../rooms/registry';
 
 const INVALID_ADD: ErrorPayload = {
@@ -49,10 +50,10 @@ const NOT_IN_ROOM = { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } 
 const TOKEN_MISSING = { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } as const;
 
 /**
- * Handler token (C1–C3 + A6):
- * - token:add   DM saja; `owner` divalidasi ada pemainnya.
+ * Handler token (C1–C3 + A6 + C7):
+ * - token:add   DM saja; `owner` divalidasi ada pemainnya; `image` dkk. batas 40/ruang.
  * - token:move  DM bebas; pemain hanya token miliknya (canManageToken).
- * - token:update HP: DM saja (A6 hanya memberi pergerakan pada pemain).
+ * - token:update HP = DM saja (A6); gambar = DM atau pemilik token (C7).
  * - token:remove DM saja; disiarkan `token:removed`.
  */
 export function registerTokenHandlers(io: Server): void {
@@ -94,7 +95,16 @@ export function registerTokenHandlers(io: Server): void {
         return;
       }
 
-      const token = addToken(membership.code, parsed.data.name, parsed.data.color, owner);
+      const image = parsed.data.image ?? null;
+      if (image !== null && !canSetTokenImage(membership.code, null, image)) {
+        ack({
+          ok: false,
+          error: { code: 'IMAGE_LIMIT', message: 'Batas 40 gambar token per ruang tercapai.' },
+        });
+        return;
+      }
+
+      const token = addToken(membership.code, parsed.data.name, parsed.data.color, owner, image);
       if (!token) {
         ack({
           ok: false,
@@ -162,22 +172,46 @@ export function registerTokenHandlers(io: Server): void {
           ack({ ok: false, error: NOT_IN_ROOM });
           return;
         }
+
+        const { id, hp, image } = parsed.data;
+        const token = getToken(membership.code, id);
+        if (!token) {
+          ack({ ok: false, error: TOKEN_MISSING });
+          return;
+        }
         // A6: HP token hanya DM — pemain hanya diberi hak menggerakkan token.
-        if (!canEditRoom(membership)) {
+        if (hp !== undefined && !canEditRoom(membership)) {
           ack({
             ok: false,
             error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh mengubah HP token.' },
           });
           return;
         }
+        // C7: ganti gambar boleh DM atau pemilik token.
+        if (image !== undefined && image !== null && image !== token.image) {
+          if (!canManageToken(membership, token)) {
+            ack({
+              ok: false,
+              error: { code: 'FORBIDDEN', message: 'Hanya DM atau pemilik token.' },
+            });
+            return;
+          }
+          if (!canSetTokenImage(membership.code, id, image)) {
+            ack({
+              ok: false,
+              error: { code: 'IMAGE_LIMIT', message: 'Batas 40 gambar token per ruang tercapai.' },
+            });
+            return;
+          }
+        }
 
-        const { id, hp } = parsed.data;
-        if (!updateTokenHp(membership.code, id, hp)) {
+        if (!updateToken(membership.code, id, { hp, image })) {
           ack({ ok: false, error: TOKEN_MISSING });
           return;
         }
 
-        io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, { id, hp });
+        // Hanya field terkirim yang ikut disiarkan (undefined terhapus saat serialisasi JSON).
+        io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, { id, hp, image });
         ack({ ok: true });
       },
     );
