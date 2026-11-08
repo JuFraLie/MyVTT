@@ -4,6 +4,8 @@ import {
   SERVER_EVENTS,
   type GridConfig,
   type GridSetResult,
+  type FogSetResult,
+  type FogUpdatedPayload,
   type MapSetResult,
   type Role,
   type RoomCreateAck,
@@ -42,6 +44,8 @@ interface RoomState {
   grid: GridConfig | null;
   /** Token ruang (C1); diperbarui hanya oleh event state:full. */
   tokens: Token[];
+  /** Sel grid tertutup fog, kunci "col,row" (B4); [] = tidak ada fog. */
+  fog: string[];
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -63,6 +67,11 @@ interface RoomState {
   updateTokenHp: (id: string, hp: number) => Promise<TokenUpdateResult>;
   /** Niat `token:remove` (A6): hapus token (DM); sinkron lewat `token:removed`. */
   removeToken: (id: string) => Promise<TokenRemoveResult>;
+  /**
+   * Niat `fog:set` (B4): daftar sel tertutup SELURUHNYA (replace penuh).
+   * Optimistik + rollback; sinkron lewat broadcast `fog:updated`.
+   */
+  setFog: (cells: string[]) => Promise<FogSetResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -73,6 +82,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   map: null,
   grid: null,
   tokens: [],
+  fog: [],
   isConnected: false,
   status: 'idle',
   errorMessage: null,
@@ -252,6 +262,25 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  setFog: (cells: string[]) => {
+    const socket = getSocket();
+    // Snapshot sebelum optimistik; rollback bila server menolak (DM-only, A6).
+    const previous = get().fog;
+    set({ fog: cells });
+    return new Promise<FogSetResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.FOG_SET, { cells }, (err: Error | null, res?: FogSetResult) => {
+          if (err || !res) {
+            set({ fog: previous });
+            reject(err ?? new Error('tanpa acknowledgment'));
+            return;
+          }
+          if (!res.ok) set({ fog: previous });
+          resolve(res);
+        });
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
@@ -263,7 +292,12 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     map: state.map,
     grid: state.grid,
     tokens: state.tokens,
+    fog: state.fog,
   });
+});
+
+socket.on(SERVER_EVENTS.FOG_UPDATED, (payload: FogUpdatedPayload) => {
+  useRoomStore.setState({ fog: payload.cells });
 });
 
 socket.on(SERVER_EVENTS.TOKEN_MOVED, (payload: TokenMovedPayload) => {
@@ -311,6 +345,7 @@ socket.on('connect', () => {
             map: null,
             grid: null,
             tokens: [],
+            fog: [],
             status: 'error',
             errorMessage: res.error.message,
           });

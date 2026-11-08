@@ -27,6 +27,8 @@ interface RoomRecord {
   grid: GridConfig | null;
   /** Daftar token dasar ruang (C1). */
   tokens: Token[];
+  /** Sel grid tertutup fog, kunci "col,row" (B4). */
+  fog: string[];
 }
 
 interface Membership {
@@ -43,7 +45,12 @@ const memberships = new Map<string, Membership>();
 function persist(code: string): void {
   const room = rooms.get(code);
   if (!room) return;
-  void saveRoom(code, { map: room.map, grid: room.grid, tokens: room.tokens });
+  void saveRoom(code, {
+    map: room.map,
+    grid: room.grid,
+    tokens: room.tokens,
+    fog: room.fog,
+  });
 }
 
 /**
@@ -74,6 +81,7 @@ export function createRoom(): string {
         map: null,
         grid: null,
         tokens: [],
+        fog: [],
       });
       persist(code);
       return code;
@@ -135,7 +143,7 @@ export function getRoomState(code: string): RoomFullState | null {
       members.push({ socketId, nickname: membership.nickname, role: membership.role });
     }
   }
-  return { code, members, map: room.map, grid: room.grid, tokens: room.tokens };
+  return { code, members, map: room.map, grid: room.grid, tokens: room.tokens, fog: room.fog };
 }
 
 /** Mengganti peta aktif ruang (B1). */
@@ -143,6 +151,15 @@ export function setRoomMap(code: string, map: RoomMap): void {
   const room = rooms.get(code);
   if (room) {
     room.map = map;
+    persist(code);
+  }
+}
+
+/** Mengganti seluruh daftar sel tertutup fog (B4, replace penuh). */
+export function setRoomFog(code: string, cells: string[]): void {
+  const room = rooms.get(code);
+  if (room) {
+    room.fog = cells;
     persist(code);
   }
 }

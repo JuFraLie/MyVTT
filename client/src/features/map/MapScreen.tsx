@@ -13,9 +13,10 @@ import MapViewport from './MapViewport';
  * viewport — karena position: fixed rusak di dalam elemen ber-transform.
  */
 export default function MapScreen() {
-  const { map, grid, tokens, role } = useRoomStore();
+  const { map, grid, tokens, fog, role, setFog } = useRoomStore();
   const [calibrating, setCalibrating] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
+  const [fogMode, setFogMode] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const isDm = role === 'dm';
   const selectedToken: Token | null = tokens.find((token) => token.id === selectedTokenId) ?? null;
@@ -28,6 +29,9 @@ export default function MapScreen() {
           grid={grid}
           tokens={tokens}
           onTapToken={(token) => setSelectedTokenId(token.id)}
+          fog={fog}
+          fogMode={fogMode}
+          onFogChange={(cells) => void setFog(cells)}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -45,13 +49,27 @@ export default function MapScreen() {
 
       {map && isDm && !calibrating && (
         <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setCalibrating(true)}
-            className="min-h-11 rounded-xl border border-slate-700 bg-slate-900/95 px-4 text-sm font-medium text-slate-100 active:bg-slate-800"
-          >
-            {grid ? 'Ubah Grid' : 'Atur Grid'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCalibrating(true)}
+              className="min-h-11 rounded-xl border border-slate-700 bg-slate-900/95 px-4 text-sm font-medium text-slate-100 active:bg-slate-800"
+            >
+              {grid ? 'Ubah Grid' : 'Atur Grid'}
+            </button>
+            <button
+              type="button"
+              aria-pressed={fogMode}
+              onClick={() => setFogMode((value) => !value)}
+              className={`min-h-11 rounded-xl border px-4 text-sm font-medium ${
+                fogMode
+                  ? 'border-indigo-400 bg-indigo-500 text-white'
+                  : 'border-slate-700 bg-slate-900/95 text-slate-100 active:bg-slate-800'
+              }`}
+            >
+              Fog
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setAddingToken(true)}

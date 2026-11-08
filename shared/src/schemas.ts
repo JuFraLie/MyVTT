@@ -108,3 +108,13 @@ export const tokenRemoveSchema = z.object({
 });
 
 export type TokenRemovePayload = z.infer<typeof tokenRemoveSchema>;
+
+/**
+ * Payload `fog:set` (B4): daftar sel tertutup SELURUHNYA (replace penuh),
+ * kunci "col,row". Server menormalkan (dedupe) sebelum menyiarkan.
+ */
+export const fogSetSchema = z.object({
+  cells: z.array(z.string().regex(/^\d{1,3},\d{1,3}$/)).max(3000),
+});
+
+export type FogSetPayload = z.infer<typeof fogSetSchema>;

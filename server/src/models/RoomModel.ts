@@ -12,6 +12,7 @@ export interface PersistedRoom {
   map: RoomMap | null;
   grid: GridConfig | null;
   tokens: Token[];
+  fog: string[];
 }
 
 // Skema longgar (Mixed) karena validasi ketat sudah dilakukan zod di
@@ -22,6 +23,7 @@ const roomSchema = new Schema(
     map: { type: Schema.Types.Mixed, default: null },
     grid: { type: Schema.Types.Mixed, default: null },
     tokens: { type: [Schema.Types.Mixed], default: [] },
+    fog: { type: [String], default: [] },
   },
   { timestamps: true },
 );

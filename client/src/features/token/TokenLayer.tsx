@@ -11,6 +11,8 @@ interface TokenLayerProps {
   scale: number;
   /** Dipanggil saat token diketuk tanpa digeser (C3: buka sheet HP). */
   onTapToken: (token: Token) => void;
+  /** Mode fog aktif (B4): sentuh token diteruskan ke alat cat, bukan drag. */
+  fogMode?: boolean;
 }
 
 interface DragState {
@@ -35,7 +37,13 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * Token menClaim gesture satu jari via stopPropagation — pan/zoom tetap
  * dua jari (B3). Semua koordinat dalam piksel gambar.
  */
-export default function TokenLayer({ tokens, grid, scale, onTapToken }: TokenLayerProps) {
+export default function TokenLayer({
+  tokens,
+  grid,
+  scale,
+  onTapToken,
+  fogMode = false,
+}: TokenLayerProps) {
   const resolved = resolveGrid(grid);
   const role = useRoomStore((state) => state.role);
   const nickname = useRoomStore((state) => state.nickname);
@@ -47,7 +55,8 @@ export default function TokenLayer({ tokens, grid, scale, onTapToken }: TokenLay
     role === 'dm' || (token.owner !== null && token.owner === nickname);
 
   function startDrag(token: Token, event: PointerEvent<HTMLDivElement>) {
-    if (!canManage(token) || scale <= 0) return;
+    // Mode fog: JANGAN stopPropagation — event diteruskan ke viewport untuk meng-cat sel.
+    if (fogMode || !canManage(token) || scale <= 0) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     const origin = cellCenterToPixel(token.col, token.row, resolved);

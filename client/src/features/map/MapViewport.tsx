@@ -1,5 +1,7 @@
 import { useRef, useState, type PointerEvent } from 'react';
 import type { GridConfig, RoomMap, Token } from '@myvtt/shared';
+import FogOverlay from '../fog/FogOverlay';
+import { useFogPaint } from '../fog/useFogPaint';
 import GridOverlay from '../grid/GridOverlay';
 import { useElementSize } from '../grid/useFitScale';
 import TokenLayer from '../token/TokenLayer';
@@ -10,6 +12,12 @@ interface MapViewportProps {
   tokens: Token[];
   /** Diteruskan ke TokenLayer: ketuk token (tanpa geser) = buka sheet HP. */
   onTapToken: (token: Token) => void;
+  /** Sel grid tertutup fog (B4). */
+  fog: string[];
+  /** Mode alat fog (B4): satu jari meng-cat sel, dua jari tetap pan/zoom. */
+  fogMode: boolean;
+  /** Commit hasil cat — disambungkan ke store.setFog (niat `fog:set`). */
+  onFogChange: (cells: string[]) => void;
 }
 
 interface View {
@@ -36,9 +44,18 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * dua jari = pan + pinch-zoom, mouse (desktop) = drag-pan.
  * Semua posisi dalam koordinat piksel gambar; kanvas memakai touch-action: none.
  */
-export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewportProps) {
+export default function MapViewport({
+  map,
+  grid,
+  tokens,
+  onTapToken,
+  fog,
+  fogMode,
+  onFogChange,
+}: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
+  const fogPaint = useFogPaint({ enabled: fogMode, map, grid, fog, onCommit: onFogChange });
   const fit =
     size.width > 0 && size.height > 0 && map.width > 0 && map.height > 0
       ? Math.min(size.width / map.width, size.height / map.height)
@@ -71,6 +88,11 @@ export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewpo
 
     if (event.pointerType === 'mouse') {
       if ((event.target as HTMLElement).closest('button')) return;
+      // Mode fog: mouse ikut meng-cat; di luar gambar → gagal → jatuh ke pan biasa.
+      if (fogPaint.begin(event, rect, resolveView())) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
       event.currentTarget.setPointerCapture(event.pointerId);
       panRef.current = { x: event.clientX, y: event.clientY, view: resolveView() };
       return;
@@ -81,19 +103,27 @@ export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewpo
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
     });
-    if (pointersRef.current.size !== 2) return;
-
-    const points = [...pointersRef.current.values()];
-    const a = points[0];
-    const b = points[1];
-    if (!a || !b) return;
-    pinchRef.current = {
-      dist: Math.hypot(a.x - b.x, a.y - b.y),
-      midX: (a.x + b.x) / 2,
-      midY: (a.y + b.y) / 2,
-      view: resolveView(),
-    };
-    setHint(false);
+    if (pointersRef.current.size === 2) {
+      // Jari kedua mengalahkan cat: goresan parsial tetap dikomit, lalu pinch.
+      fogPaint.abort();
+      const points = [...pointersRef.current.values()];
+      const a = points[0];
+      const b = points[1];
+      if (!a || !b) return;
+      pinchRef.current = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        midX: (a.x + b.x) / 2,
+        midY: (a.y + b.y) / 2,
+        view: resolveView(),
+      };
+      setHint(false);
+      return;
+    }
+    if (pointersRef.current.size > 2) return;
+    // Mode fog: sentuh satu jari diarahkan ke alat cat; selain itu no-op (B3).
+    if (fogPaint.begin(event, rect, resolveView())) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -104,6 +134,10 @@ export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewpo
         x: start.view.x + (event.clientX - start.x),
         y: start.view.y + (event.clientY - start.y),
       });
+      return;
+    }
+    if (fogPaint.isActive()) {
+      fogPaint.move(event);
       return;
     }
     if (!pointersRef.current.has(event.pointerId)) return;
@@ -134,6 +168,7 @@ export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewpo
   }
 
   function handlePointerEnd(event: PointerEvent<HTMLDivElement>) {
+    fogPaint.end(); // no-op bila tidak sedang meng-cat; komit goresan selesai
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size < 2) pinchRef.current = null;
     panRef.current = null;
@@ -164,13 +199,26 @@ export default function MapViewport({ map, grid, tokens, onTapToken }: MapViewpo
           className="absolute inset-0 h-full w-full"
         />
         {grid && <GridOverlay width={map.width} height={map.height} scale={1} grid={grid} />}
-        <TokenLayer tokens={tokens} grid={grid} scale={renderView.s} onTapToken={onTapToken} />
+        <TokenLayer
+          tokens={tokens}
+          grid={grid}
+          scale={renderView.s}
+          onTapToken={onTapToken}
+          fogMode={fogMode}
+        />
+        <FogOverlay map={map} grid={grid} cells={fog} preview={fogPaint.preview} />
       </div>
 
-      {hint && (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-900/85 px-3 py-1.5 text-xs text-slate-300">
-          Dua jari untuk geser · cubit untuk zoom
+      {fogMode ? (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-indigo-900/90 px-3 py-1.5 text-xs text-indigo-200">
+          Ketuk sel = buka/tutup · seret = tutup area
         </p>
+      ) : (
+        hint && (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-900/85 px-3 py-1.5 text-xs text-slate-300">
+            Dua jari untuk geser · cubit untuk zoom
+          </p>
+        )
       )}
     </div>
   );

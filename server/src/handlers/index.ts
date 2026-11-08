@@ -3,6 +3,7 @@ import { registerRoomHandlers } from './room';
 import { registerMapHandlers } from './map';
 import { registerGridHandlers } from './grid';
 import { registerTokenHandlers } from './token';
+import { registerFogHandlers } from './fog';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -17,4 +18,5 @@ export function registerHandlers(io: Server): void {
   registerMapHandlers(io);
   registerGridHandlers(io);
   registerTokenHandlers(io);
+  registerFogHandlers(io);
 }

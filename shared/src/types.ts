@@ -98,6 +98,8 @@ export interface RoomFullState {
   map: RoomMap | null;
   grid: GridConfig | null;
   tokens: Token[];
+  /** Sel grid yang tertutup fog, kunci "col,row" (B4); [] = tidak ada fog. */
+  fog: string[];
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -142,3 +144,11 @@ export interface TokenRemovedPayload {
 
 /** Hasil acknowledgment event `token:remove` (A6). */
 export type TokenRemoveResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Hasil acknowledgment event `fog:set` (B4). */
+export type FogSetResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Payload event server→klien `fog:updated` (B4): daftar sel tertutup (replace penuh). */
+export interface FogUpdatedPayload {
+  cells: string[];
+}
