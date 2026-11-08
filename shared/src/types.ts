@@ -123,6 +123,8 @@ export interface RoomFullState {
   fog: string[];
   /** Pustaka token ruang (C8); daftar gambar unggahan yang bisa diklon. */
   library: AssetEntry[];
+  /** Log aksi bersama (D3): dadu, HP, giliran — urut waktu, kapasitas server. */
+  log: LogEntry[];
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -209,6 +211,26 @@ export interface DiceRolledPayload {
 
 /** Hasil acknowledgment event `dice:roll` (D1). */
 export type DiceRollResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Jenis entri log bersama (D3); `turn` dipakai pelacak inisiatif (C5). */
+export type LogEntryType = 'dice' | 'hp' | 'turn';
+
+/** Satu entri log bersama (D3) — urut waktu; teks disusun server agar konsisten. */
+export interface LogEntry {
+  id: string;
+  type: LogEntryType;
+  /** Waktu server (ms sejak epoch). */
+  at: number;
+  /** Nama panggilan pelaku aksi. */
+  actor: string;
+  /** Teks siap tampil, mis. "2d20+5 = 19 (7, 12)" atau "HP Hero: 30 → 25". */
+  text: string;
+}
+
+/** Payload event server→klien `log:appended` (D3): entri baru di akhir log. */
+export interface LogAppendedPayload {
+  entry: LogEntry;
+}
 
 /** Hasil acknowledgment event `asset:add` (C8). */
 export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };

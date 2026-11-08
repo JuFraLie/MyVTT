@@ -14,6 +14,8 @@ import {
   type GridSetResult,
   type FogSetResult,
   type FogUpdatedPayload,
+  type LogAppendedPayload,
+  type LogEntry,
   type MapSetResult,
   type Role,
   type RoomCreateAck,
@@ -57,6 +59,8 @@ interface RoomState {
   fog: string[];
   /** Pustaka token ruang (C8); diperbarui state:full & asset:added/removed. */
   library: AssetEntry[];
+  /** Log aksi bersama (D3): dadu, HP, giliran — urut waktu, terbaru di akhir. */
+  log: LogEntry[];
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -119,6 +123,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   tokens: [],
   fog: [],
   library: [],
+  log: [],
   lastRoll: null,
   isConnected: false,
   status: 'idle',
@@ -410,7 +415,12 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     tokens: state.tokens,
     fog: state.fog,
     library: state.library,
+    log: state.log,
   });
+});
+
+socket.on(SERVER_EVENTS.LOG_APPENDED, (payload: LogAppendedPayload) => {
+  useRoomStore.setState((state) => ({ log: [...state.log, payload.entry] }));
 });
 
 socket.on(SERVER_EVENTS.FOG_UPDATED, (payload: FogUpdatedPayload) => {
@@ -485,6 +495,7 @@ socket.on('connect', () => {
             tokens: [],
             fog: [],
             library: [],
+            log: [],
             lastRoll: null,
             status: 'error',
             errorMessage: res.error.message,

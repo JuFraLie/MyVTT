@@ -15,6 +15,7 @@ import {
 import { canEditRoom, canManageToken } from '../rooms/permissions';
 import {
   addToken,
+  appendLog,
   canSetTokenImage,
   getMembership,
   getToken,
@@ -54,7 +55,8 @@ const TOKEN_MISSING = { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } a
  * - token:add   DM saja; `owner` divalidasi ada pemainnya; batas 40 gambar/ruang;
  *               `size` = sisi kotak (1/2/3), spawn dikunci agar muat di peta.
  * - token:move  DM bebas; pemain hanya token miliknya (canManageToken).
- * - token:update HP = DM saja (A6); gambar & ukuran = DM atau pemilik (C7/C9).
+ * - token:update HP = DM saja (A6); gambar & ukuran = DM atau pemilik (C7/C9);
+ *               perubahan HP nyata ikut dicatat ke log bersama (D3).
  * - token:remove DM saja; disiarkan `token:removed`.
  */
 export function registerTokenHandlers(io: Server): void {
@@ -216,6 +218,8 @@ export function registerTokenHandlers(io: Server): void {
           }
         }
 
+        // HP lama disimpan dulu untuk entri log (D3) sebelum updateToken memutasi.
+        const hpBefore = token.hp;
         if (!updateToken(membership.code, id, { hp, image, size })) {
           ack({ ok: false, error: TOKEN_MISSING });
           return;
@@ -223,6 +227,17 @@ export function registerTokenHandlers(io: Server): void {
 
         // Hanya field terkirim yang ikut disiarkan (undefined terhapus saat serialisasi JSON).
         io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, { id, hp, image, size });
+        // D3: catat perubahan HP yang nyata (nilai sama tidak dicatat).
+        if (hp !== undefined && hp !== hpBefore) {
+          const entry = appendLog(membership.code, {
+            type: 'hp',
+            actor: membership.nickname,
+            text: `HP ${token.name}: ${hpBefore} → ${hp}`,
+          });
+          if (entry) {
+            io.to(membership.code).emit(SERVER_EVENTS.LOG_APPENDED, { entry });
+          }
+        }
         ack({ ok: true });
       },
     );

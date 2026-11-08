@@ -9,7 +9,7 @@ import {
   type DiceType,
   type ErrorPayload,
 } from '@myvtt/shared';
-import { getMembership } from '../rooms/registry';
+import { appendLog, getMembership } from '../rooms/registry';
 
 const INVALID_PAYLOAD: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
@@ -63,6 +63,15 @@ export function registerDiceHandlers(io: Server): void {
       );
 
       io.to(membership.code).emit(SERVER_EVENTS.DICE_ROLLED, result);
+      // D3: lemparan juga masuk log bersama (riwayat urut di tab Log).
+      const entry = appendLog(membership.code, {
+        type: 'dice',
+        actor: membership.nickname,
+        text: `${count}${dice}${modifier >= 0 ? '+' : ''}${modifier} = ${total} (${rolls.join(', ')})`,
+      });
+      if (entry) {
+        io.to(membership.code).emit(SERVER_EVENTS.LOG_APPENDED, { entry });
+      }
       ack({ ok: true });
     });
   });

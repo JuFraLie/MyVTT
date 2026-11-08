@@ -3,6 +3,7 @@ import {
   DEFAULT_GRID,
   type AssetEntry,
   type GridConfig,
+  type LogEntry,
   type Role,
   type RoomFullState,
   type RoomMap,
@@ -33,6 +34,8 @@ interface RoomRecord {
   fog: string[];
   /** Pustaka token ruang (C8): unggahan gambar yang bisa diklon. */
   library: AssetEntry[];
+  /** Log aksi bersama (D3): dadu, HP, giliran — urut waktu. */
+  log: LogEntry[];
 }
 
 interface Membership {
@@ -55,6 +58,7 @@ function persist(code: string): void {
     tokens: room.tokens,
     fog: room.fog,
     library: room.library,
+    log: room.log,
   });
 }
 
@@ -88,6 +92,7 @@ export function createRoom(): string {
         tokens: [],
         fog: [],
         library: [],
+        log: [],
       });
       persist(code);
       return code;
@@ -157,6 +162,7 @@ export function getRoomState(code: string): RoomFullState | null {
     tokens: room.tokens,
     fog: room.fog,
     library: room.library,
+    log: room.log,
   };
 }
 
@@ -208,6 +214,26 @@ export function removeAsset(code: string, id: string): boolean {
   room.library.splice(index, 1);
   persist(code);
   return true;
+}
+
+// Kapasitas log per ruang (D3): entri terlama dibuang agar state tetap ringan.
+const LOG_LIMIT = 200;
+
+/**
+ * Menambah satu entri log bersama (D3) lalu persist; mengembalikan entri
+ * lengkap (id + waktu server) untuk disiarkan `log:appended`.
+ */
+export function appendLog(
+  code: string,
+  entry: { type: LogEntry['type']; actor: string; text: string },
+): LogEntry | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+  const full: LogEntry = { id: randomUUID(), at: Date.now(), ...entry };
+  room.log.push(full);
+  if (room.log.length > LOG_LIMIT) room.log.splice(0, room.log.length - LOG_LIMIT);
+  persist(code);
+  return full;
 }
 
 /** Mengganti parameter grid ruang (B2). */
