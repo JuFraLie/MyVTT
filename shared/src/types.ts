@@ -52,6 +52,11 @@ export interface Token {
   color: string;
   /** HP token (C3); default diisi server, diubah lewat `token:update`. */
   hp: number;
+  /**
+   * Nama panggilan pemain pemilik (A6); null = token DM/monster.
+   * Pemain hanya boleh menggerakkan token miliknya sendiri.
+   */
+  owner: string | null;
 }
 
 /** Payload bawaan event server→klien `error`. */
@@ -129,3 +134,11 @@ export interface TokenUpdatedPayload {
 
 /** Hasil acknowledgment event `token:update` (C3). */
 export type TokenUpdateResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Payload event server→klien `token:removed` (A6): token dihapus dari ruang. */
+export interface TokenRemovedPayload {
+  id: string;
+}
+
+/** Hasil acknowledgment event `token:remove` (A6). */
+export type TokenRemoveResult = { ok: true } | { ok: false; error: ErrorPayload };

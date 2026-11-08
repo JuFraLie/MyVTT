@@ -65,8 +65,9 @@ export const gridSetSchema = z.object({
 export type GridSetPayload = z.infer<typeof gridSetSchema>;
 
 /**
- * Payload `token:add` (C1): DM menambah token dasar (warna + inisial).
- * Posisi (col,row) dihitung server agar spawn tidak menumpuk.
+ * Payload `token:add` (C1 + A6): DM menambah token dasar (warna + inisial).
+ * Posisi (col,row) dihitung server agar spawn tidak menumpuk;
+ * `owner` = nama panggilan pemain pemilik (null = token DM/monster).
  */
 export const tokenAddSchema = z.object({
   name: z.string().trim().min(1).max(24),
@@ -76,6 +77,7 @@ export const tokenAddSchema = z.object({
     .refine((value) => (TOKEN_COLORS as readonly string[]).includes(value), {
       message: 'warna harus salah satu dari preset',
     }),
+  owner: z.string().trim().min(1).max(24).nullish(),
 });
 
 export type TokenAddPayload = z.infer<typeof tokenAddSchema>;
@@ -99,3 +101,10 @@ export const tokenUpdateSchema = z.object({
 });
 
 export type TokenUpdatePayload = z.infer<typeof tokenUpdateSchema>;
+
+/** Payload `token:remove` (A6): DM menghapus token dari ruang. */
+export const tokenRemoveSchema = z.object({
+  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+});
+
+export type TokenRemovePayload = z.infer<typeof tokenRemoveSchema>;

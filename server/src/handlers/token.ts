@@ -4,22 +4,28 @@ import {
   SERVER_EVENTS,
   tokenAddSchema,
   tokenMoveSchema,
+  tokenRemoveSchema,
   tokenUpdateSchema,
   type ErrorPayload,
   type TokenAddResult,
   type TokenMoveResult,
+  type TokenRemoveResult,
   type TokenUpdateResult,
 } from '@myvtt/shared';
+import { canEditRoom, canManageToken } from '../rooms/permissions';
 import {
   addToken,
   getMembership,
+  getToken,
   getRoom,
   getRoomState,
+  isPlayerInRoom,
   moveToken,
+  removeToken,
   updateTokenHp,
 } from '../rooms/registry';
 
-const INVALID_PAYLOAD: ErrorPayload = {
+const INVALID_ADD: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
   message: 'Payload token:add tidak valid',
 };
@@ -34,24 +40,37 @@ const INVALID_UPDATE: ErrorPayload = {
   message: 'Payload token:update tidak valid',
 };
 
-/** Handler C1: DM menambah token dasar (warna + inisial); disiarkan lewat state:full. */
+const INVALID_REMOVE: ErrorPayload = {
+  code: 'INVALID_PAYLOAD',
+  message: 'Payload token:remove tidak valid',
+};
+
+const NOT_IN_ROOM = { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } as const;
+const TOKEN_MISSING = { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } as const;
+
+/**
+ * Handler token (C1–C3 + A6):
+ * - token:add   DM saja; `owner` divalidasi ada pemainnya.
+ * - token:move  DM bebas; pemain hanya token miliknya (canManageToken).
+ * - token:update HP: DM saja (A6 hanya memberi pergerakan pada pemain).
+ * - token:remove DM saja; disiarkan `token:removed`.
+ */
 export function registerTokenHandlers(io: Server): void {
   io.on('connection', (socket) => {
     socket.on(CLIENT_EVENTS.TOKEN_ADD, (payload: unknown, ack: (res: TokenAddResult) => void) => {
       const parsed = tokenAddSchema.safeParse(payload);
       if (!parsed.success) {
-        socket.emit(SERVER_EVENTS.ERROR, INVALID_PAYLOAD);
+        socket.emit(SERVER_EVENTS.ERROR, INVALID_ADD);
         return;
       }
       if (typeof ack !== 'function') return;
 
       const membership = getMembership(socket.id);
       if (!membership) {
-        ack({ ok: false, error: { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } });
+        ack({ ok: false, error: NOT_IN_ROOM });
         return;
       }
-      // Izin peran (A6): hanya DM yang boleh menambah token (pemetaan pemain menyusul di C7/C8).
-      if (membership.role !== 'dm') {
+      if (!canEditRoom(membership)) {
         ack({
           ok: false,
           error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh menambah token.' },
@@ -66,7 +85,16 @@ export function registerTokenHandlers(io: Server): void {
         return;
       }
 
-      const token = addToken(membership.code, parsed.data.name, parsed.data.color);
+      const owner = parsed.data.owner ?? null;
+      if (owner !== null && !isPlayerInRoom(membership.code, owner)) {
+        ack({
+          ok: false,
+          error: { code: 'OWNER_NOT_FOUND', message: 'Pemain pemilik tidak ada di ruang.' },
+        });
+        return;
+      }
+
+      const token = addToken(membership.code, parsed.data.name, parsed.data.color, owner);
       if (!token) {
         ack({
           ok: false,
@@ -74,7 +102,9 @@ export function registerTokenHandlers(io: Server): void {
         });
         return;
       }
-      console.log(`[token] ${membership.code} +${token.name} @(${token.col},${token.row})`);
+      console.log(
+        `[token] ${membership.code} +${token.name} @(${token.col},${token.row}) owner=${token.owner ?? 'dm'}`,
+      );
 
       const state = getRoomState(membership.code);
       if (state) io.to(membership.code).emit(SERVER_EVENTS.STATE_FULL, state);
@@ -91,23 +121,26 @@ export function registerTokenHandlers(io: Server): void {
 
       const membership = getMembership(socket.id);
       if (!membership) {
-        ack({ ok: false, error: { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } });
-        return;
-      }
-      // Izin peran (A6): sementara hanya DM; token milik pemain menyusul (C7/C8).
-      if (membership.role !== 'dm') {
-        ack({
-          ok: false,
-          error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh menggerakkan token.' },
-        });
+        ack({ ok: false, error: NOT_IN_ROOM });
         return;
       }
 
       const { id, col, row } = parsed.data;
-      if (!moveToken(membership.code, id, col, row)) {
-        ack({ ok: false, error: { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } });
+      const token = getToken(membership.code, id);
+      if (!token) {
+        ack({ ok: false, error: TOKEN_MISSING });
         return;
       }
+      // A6: pemain hanya boleh menggerakkan token miliknya sendiri.
+      if (!canManageToken(membership, token)) {
+        ack({
+          ok: false,
+          error: { code: 'FORBIDDEN', message: 'Hanya token milikmu yang boleh digerakkan.' },
+        });
+        return;
+      }
+
+      moveToken(membership.code, id, col, row);
 
       // Disiarkan sebagai token:moved (bukan state:full) agar ringan saat drag sering terjadi.
       io.to(membership.code).emit(SERVER_EVENTS.TOKEN_MOVED, { id, col, row });
@@ -126,11 +159,11 @@ export function registerTokenHandlers(io: Server): void {
 
         const membership = getMembership(socket.id);
         if (!membership) {
-          ack({ ok: false, error: { code: 'NOT_IN_ROOM', message: 'Kamu belum masuk ruang.' } });
+          ack({ ok: false, error: NOT_IN_ROOM });
           return;
         }
-        // Izin peran (A6): sementara hanya DM; edit HP pemain menyusul (C7/C8).
-        if (membership.role !== 'dm') {
+        // A6: HP token hanya DM — pemain hanya diberi hak menggerakkan token.
+        if (!canEditRoom(membership)) {
           ack({
             ok: false,
             error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh mengubah HP token.' },
@@ -140,11 +173,47 @@ export function registerTokenHandlers(io: Server): void {
 
         const { id, hp } = parsed.data;
         if (!updateTokenHp(membership.code, id, hp)) {
-          ack({ ok: false, error: { code: 'NOT_FOUND', message: 'Token tidak ditemukan.' } });
+          ack({ ok: false, error: TOKEN_MISSING });
           return;
         }
 
         io.to(membership.code).emit(SERVER_EVENTS.TOKEN_UPDATED, { id, hp });
+        ack({ ok: true });
+      },
+    );
+
+    socket.on(
+      CLIENT_EVENTS.TOKEN_REMOVE,
+      (payload: unknown, ack: (res: TokenRemoveResult) => void) => {
+        const parsed = tokenRemoveSchema.safeParse(payload);
+        if (!parsed.success) {
+          socket.emit(SERVER_EVENTS.ERROR, INVALID_REMOVE);
+          return;
+        }
+        if (typeof ack !== 'function') return;
+
+        const membership = getMembership(socket.id);
+        if (!membership) {
+          ack({ ok: false, error: NOT_IN_ROOM });
+          return;
+        }
+        // A6: hanya DM yang boleh menghapus token (termasuk milik pemain lain).
+        if (!canEditRoom(membership)) {
+          ack({
+            ok: false,
+            error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh menghapus token.' },
+          });
+          return;
+        }
+
+        const { id } = parsed.data;
+        if (!removeToken(membership.code, id)) {
+          ack({ ok: false, error: TOKEN_MISSING });
+          return;
+        }
+        console.log(`[token] ${membership.code} -hapus ${id.slice(0, 8)}…`);
+
+        io.to(membership.code).emit(SERVER_EVENTS.TOKEN_REMOVED, { id });
         ack({ ok: true });
       },
     );

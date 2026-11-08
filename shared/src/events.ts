@@ -26,6 +26,7 @@ export const SERVER_EVENTS = {
   ASSET_ADDED: 'asset:added',
   TOKEN_MOVED: 'token:moved',
   TOKEN_UPDATED: 'token:updated',
+  TOKEN_REMOVED: 'token:removed',
   FOG_UPDATED: 'fog:updated',
   LOG_APPENDED: 'log:appended',
   INITIATIVE_UPDATED: 'initiative:updated',

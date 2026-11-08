@@ -38,14 +38,16 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export default function TokenLayer({ tokens, grid, scale, onTapToken }: TokenLayerProps) {
   const resolved = resolveGrid(grid);
   const role = useRoomStore((state) => state.role);
+  const nickname = useRoomStore((state) => state.nickname);
   const moveToken = useRoomStore((state) => state.moveToken);
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
-  // Izin peran (A6): sementara hanya DM; kepemilikan token pemain menyusul di C7/C8.
-  const canDrag = role === 'dm';
+  // Izin peran (A6): DM bebas; pemain hanya token miliknya (owner = namanya).
+  const canManage = (token: Token): boolean =>
+    role === 'dm' || (token.owner !== null && token.owner === nickname);
 
   function startDrag(token: Token, event: PointerEvent<HTMLDivElement>) {
-    if (!canDrag || scale <= 0) return;
+    if (!canManage(token) || scale <= 0) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     const origin = cellCenterToPixel(token.col, token.row, resolved);
@@ -110,7 +112,7 @@ export default function TokenLayer({ tokens, grid, scale, onTapToken }: TokenLay
           <div
             key={token.id}
             className={`absolute touch-none ${
-              canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+              canManage(token) ? 'cursor-grab active:cursor-grabbing' : ''
             } ${isDragging ? 'z-10' : ''}`}
             style={{
               left: center.x - size / 2,

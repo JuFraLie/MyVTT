@@ -12,32 +12,56 @@ const inputClass =
   'min-h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-base text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none';
 
 /**
- * Bottom sheet tambah token (C1): nama + warna preset + pratinjau inisial.
- * Hanya dibuka DM; posisi spawn dihitung server (tidak dikirim klien).
+ * Bottom sheet tambah token (C1 + A6): nama, warna preset, dan pemilih
+ * "Milik" (DM/Monster atau salah satu pemain di ruang). Hanya dibuka DM;
+ * posisi spawn dihitung server (tidak dikirim klien).
  */
 export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
   const addToken = useRoomStore((state) => state.addToken);
+  const members = useRoomStore((state) => state.members);
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(TOKEN_COLORS[4]);
+  const [owner, setOwner] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const initial = name.trim().charAt(0).toUpperCase();
+  const players = members.filter((member) => member.role === 'player');
 
   async function handleAdd() {
     if (saving || name.trim().length === 0) return;
     setSaving(true);
     setErrorMessage(null);
     try {
-      const result = await addToken(name.trim(), color);
+      const result = await addToken(name.trim(), color, owner);
       if (!result.ok) throw new Error(result.error.message);
       setName('');
+      setOwner(null);
       onClose();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Gagal menambah token.');
     } finally {
       setSaving(false);
     }
+  }
+
+  function ownerButton(label: string, value: string | null) {
+    const selected = owner === value;
+    return (
+      <button
+        key={label}
+        type="button"
+        aria-pressed={selected}
+        onClick={() => setOwner(value)}
+        className={`min-h-11 rounded-xl border px-3 text-sm ${
+          selected
+            ? 'border-indigo-400 bg-indigo-500/20 text-indigo-200'
+            : 'border-slate-700 bg-slate-950 text-slate-300'
+        }`}
+      >
+        {label}
+      </button>
+    );
   }
 
   return (
@@ -80,6 +104,17 @@ export default function AddTokenSheet({ open, onClose }: AddTokenSheetProps) {
               />
             ))}
           </div>
+        </div>
+
+        <div>
+          <span className="text-xs text-slate-400">Milik (opsional)</span>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {ownerButton('DM / Monster', null)}
+            {players.map((player) => ownerButton(player.nickname, player.nickname))}
+          </div>
+          {players.length === 0 && (
+            <p className="mt-1 text-xs text-slate-500">Belum ada pemain di ruang ini.</p>
+          )}
         </div>
 
         <button

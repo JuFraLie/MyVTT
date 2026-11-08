@@ -159,8 +159,14 @@ export function setRoomGrid(code: string, grid: GridConfig): void {
 /**
  * Menambah token dasar (C1). Posisi spawn dihitung server dari grid
  * (atau grid bawaan) — mulai dari tengah peta, digeser agar tidak menumpuk.
+ * `owner` (A6) = nama panggilan pemain pemilik; null = token DM/monster.
  */
-export function addToken(code: string, name: string, color: string): Token | null {
+export function addToken(
+  code: string,
+  name: string,
+  color: string,
+  owner: string | null,
+): Token | null {
   const room = rooms.get(code);
   if (!room || !room.map) return null;
   const grid = room.grid ?? DEFAULT_GRID;
@@ -174,10 +180,41 @@ export function addToken(code: string, name: string, color: string): Token | nul
     col: slot % cols,
     row: Math.min(rows - 1, Math.floor(slot / cols)),
     hp: DEFAULT_TOKEN_HP,
+    owner,
   };
   room.tokens.push(token);
   persist(code);
   return token;
+}
+
+/** Ambil token by id (A6: izin dihitung per token). */
+export function getToken(code: string, id: string): Token | undefined {
+  return rooms.get(code)?.tokens.find((item) => item.id === id);
+}
+
+/** Menghapus token (A6); false bila id tidak ditemukan. */
+export function removeToken(code: string, id: string): boolean {
+  const room = rooms.get(code);
+  if (!room) return false;
+  const index = room.tokens.findIndex((item) => item.id === id);
+  if (index < 0) return false;
+  room.tokens.splice(index, 1);
+  persist(code);
+  return true;
+}
+
+/** Apakah ada pemain (role player) dengan nama itu di ruang? (validasi owner A6) */
+export function isPlayerInRoom(code: string, nickname: string): boolean {
+  for (const membership of memberships.values()) {
+    if (
+      membership.code === code &&
+      membership.role === 'player' &&
+      membership.nickname === nickname
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Memindahkan token (C2) ke indeks kotak baru; false bila id tidak ditemukan. */

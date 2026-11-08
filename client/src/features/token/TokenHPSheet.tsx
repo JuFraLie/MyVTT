@@ -18,8 +18,11 @@ const clampHp = (value: number) => Math.min(999, Math.max(0, value));
 export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
   const role = useRoomStore((state) => state.role);
   const updateTokenHp = useRoomStore((state) => state.updateTokenHp);
+  const removeToken = useRoomStore((state) => state.removeToken);
   const [draft, setDraft] = useState(String(token.hp));
   const [lastHp, setLastHp] = useState(token.hp);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const canEdit = role === 'dm';
 
   // Sinkron saat nilai server berubah (klien lain maupun rollback),
@@ -27,6 +30,22 @@ export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
   if (token.hp !== lastHp) {
     setLastHp(token.hp);
     setDraft(String(token.hp));
+  }
+
+  async function handleRemove() {
+    if (!confirmRemove) {
+      setConfirmRemove(true); // dua langkah agar hapus tidak kecelakaan
+      return;
+    }
+    setRemoveError(null);
+    try {
+      const result = await removeToken(token.id);
+      if (!result.ok) throw new Error(result.error.message);
+      onClose();
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Gagal menghapus token.');
+      setConfirmRemove(false);
+    }
   }
 
   function commitHp(hp: number) {
@@ -94,6 +113,25 @@ export default function TokenHPSheet({ token, onClose }: TokenHPSheetProps) {
             ? 'Ketuk −/+ atau ketik angka; perubahan langsung tersinkron.'
             : 'HP hanya dapat diubah oleh DM.'}
         </p>
+
+        {canEdit && (
+          <button
+            type="button"
+            onClick={handleRemove}
+            className={`min-h-11 w-full rounded-xl text-sm font-medium ${
+              confirmRemove
+                ? 'bg-red-600 text-white active:bg-red-500'
+                : 'border border-slate-700 bg-slate-900 text-red-400 active:bg-slate-800'
+            }`}
+          >
+            {confirmRemove ? 'Ketuk lagi untuk hapus token' : 'Hapus Token'}
+          </button>
+        )}
+        {removeError && (
+          <p role="alert" className="text-center text-sm text-red-400">
+            {removeError}
+          </p>
+        )}
       </div>
     </BottomSheet>
   );

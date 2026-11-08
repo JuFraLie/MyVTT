@@ -7,6 +7,7 @@ import {
   type GridSetResult,
 } from '@myvtt/shared';
 import { getMembership, getRoom, getRoomState, setRoomGrid } from '../rooms/registry';
+import { canEditRoom } from '../rooms/permissions';
 
 const INVALID_PAYLOAD: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
@@ -30,7 +31,7 @@ export function registerGridHandlers(io: Server): void {
         return;
       }
       // Izin peran (A6): hanya DM yang boleh mengatur grid.
-      if (membership.role !== 'dm') {
+      if (!canEditRoom(membership)) {
         ack({
           ok: false,
           error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh mengatur grid.' },

@@ -7,6 +7,7 @@ import {
   type MapSetResult,
 } from '@myvtt/shared';
 import { getMembership, getRoomState, setRoomMap } from '../rooms/registry';
+import { canEditRoom } from '../rooms/permissions';
 
 const INVALID_PAYLOAD: ErrorPayload = {
   code: 'INVALID_PAYLOAD',
@@ -30,7 +31,7 @@ export function registerMapHandlers(io: Server): void {
         return;
       }
       // Izin peran (A6): hanya DM yang boleh mengganti peta.
-      if (membership.role !== 'dm') {
+      if (!canEditRoom(membership)) {
         ack({
           ok: false,
           error: { code: 'FORBIDDEN', message: 'Hanya DM yang boleh mengganti peta.' },

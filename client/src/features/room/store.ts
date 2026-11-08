@@ -15,6 +15,8 @@ import {
   type TokenAddResult,
   type TokenMoveResult,
   type TokenMovedPayload,
+  type TokenRemoveResult,
+  type TokenRemovedPayload,
   type TokenUpdateResult,
   type TokenUpdatedPayload,
 } from '@myvtt/shared';
@@ -50,8 +52,8 @@ interface RoomState {
   setMap: (map: RoomMap) => Promise<MapSetResult>;
   /** Niat `grid:set` (B2): hanya berhasil jika pemanggil DM. */
   setGrid: (grid: GridConfig) => Promise<GridSetResult>;
-  /** Niat `token:add` (C1): hanya berhasil jika pemanggil DM; posisi dihitung server. */
-  addToken: (name: string, color: string) => Promise<TokenAddResult>;
+  /** Niat `token:add` (C1/A6): DM; `owner` = pemain pemilik token (opsional). */
+  addToken: (name: string, color: string, owner: string | null) => Promise<TokenAddResult>;
   /**
    * Niat `token:move` (C2): snap hasil drag. Update optimistik dulu,
    * rollback bila server menolak (AGENTS.md §6).
@@ -59,6 +61,8 @@ interface RoomState {
   moveToken: (id: string, col: number, row: number) => Promise<TokenMoveResult>;
   /** Niat `token:update` (C3): ubah HP; optimistik + rollback seperti moveToken. */
   updateTokenHp: (id: string, hp: number) => Promise<TokenUpdateResult>;
+  /** Niat `token:remove` (A6): hapus token (DM); sinkron lewat `token:removed`. */
+  removeToken: (id: string) => Promise<TokenRemoveResult>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -153,14 +157,14 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
-  addToken: (name: string, color: string) => {
+  addToken: (name: string, color: string, owner: string | null) => {
     const socket = getSocket();
     return new Promise<TokenAddResult>((resolve, reject) => {
       socket
         .timeout(5000)
         .emit(
           CLIENT_EVENTS.TOKEN_ADD,
-          { name, color },
+          { name, color, owner },
           (err: Error | null, res?: TokenAddResult) => {
             if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
             else resolve(res);
@@ -236,6 +240,18 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         );
     });
   },
+  removeToken: (id: string) => {
+    const socket = getSocket();
+    // Tanpa optimistik: pembaruan datang dari broadcast token:removed (A6).
+    return new Promise<TokenRemoveResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.TOKEN_REMOVE, { id }, (err: Error | null, res?: TokenRemoveResult) => {
+          if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+          else resolve(res);
+        });
+    });
+  },
 }));
 
 // A3: satu-satunya sumber state bersama; klien tidak mengubahnya secara lokal.
@@ -263,6 +279,12 @@ socket.on(SERVER_EVENTS.TOKEN_UPDATED, (payload: TokenUpdatedPayload) => {
     tokens: state.tokens.map((token) =>
       token.id === payload.id ? { ...token, hp: payload.hp } : token,
     ),
+  }));
+});
+
+socket.on(SERVER_EVENTS.TOKEN_REMOVED, (payload: TokenRemovedPayload) => {
+  useRoomStore.setState((state) => ({
+    tokens: state.tokens.filter((token) => token.id !== payload.id),
   }));
 });
 
