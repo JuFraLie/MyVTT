@@ -11,6 +11,15 @@ const SESSION_ID = crypto.randomUUID();
 
 let initialized = false;
 
+// Penghitung ketukan salah kumulatif (G3): runner tugas membaca selisihnya
+// per tugas lewat getMisTapCount().
+let misTapCount = 0;
+
+/** Jumlah kumulatif ketukan salah pada sesi ini (G2/G3). */
+export function getMisTapCount(): number {
+  return misTapCount;
+}
+
 /**
  * Catat satu event telemetry (G2, AGENTS §8). Tanpa record consent (G1)
  * fungsi ini no-op — telemetry hanya aktif setelah partisipan setuju.
@@ -20,6 +29,7 @@ let initialized = false;
 export function logTelemetry(type: TelemetryEventType, metadata: TelemetryMetadata = {}): void {
   const participant = loadParticipant();
   if (!participant) return;
+  if (type === 'mis_tap') misTapCount += 1;
   getSocket().emit(CLIENT_EVENTS.TELEMETRY_EVENT, {
     participantId: participant.participantId,
     sessionId: SESSION_ID,

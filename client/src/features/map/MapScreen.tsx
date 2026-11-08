@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Token } from '@myvtt/shared';
 import GridCalibrateScreen from '../grid/GridCalibrateScreen';
 import { useRoomStore } from '../room/store';
+import { useTaskStore } from '../research/taskStore';
 import AddTokenSheet from '../token/AddTokenSheet';
 import TokenHPSheet from '../token/TokenHPSheet';
 import MapUpload from './MapUpload';
@@ -14,6 +15,7 @@ import MapViewport from './MapViewport';
  */
 export default function MapScreen() {
   const { map, grid, tokens, fog, role, setFog, rulers, updateRuler, clearRuler } = useRoomStore();
+  const targetCell = useTaskStore((state) => state.target);
   const [calibrating, setCalibrating] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
   const [fogMode, setFogMode] = useState(false);
@@ -35,6 +37,7 @@ export default function MapScreen() {
           rulers={rulers}
           onRulerMove={updateRuler}
           onRulerEnd={clearRuler}
+          targetCell={targetCell}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">

@@ -7,6 +7,8 @@ import DiceScreen from './features/dice/DiceScreen';
 import CharacterScreen from './features/character/CharacterScreen';
 import LogScreen from './features/log/LogScreen';
 import ResearchFlow from './features/research/ResearchFlow';
+import TaskBar from './features/research/TaskBar';
+import { initTaskWatcher, tasksFinished, useTaskStore } from './features/research/taskStore';
 import { initTelemetry } from './lib/telemetry';
 import { loadParticipant } from './lib/participant';
 
@@ -19,11 +21,18 @@ import { loadParticipant } from './lib/participant';
 export default function App() {
   const [tab, setTab] = useState<TabId>('map');
   const [agreed, setAgreed] = useState(() => loadParticipant() !== null);
+  const taskActive = useTaskStore((state) => state.active);
   const { code, nickname, role, members, isConnected } = useRoomStore();
 
   useEffect(() => {
     initTelemetry();
+    initTaskWatcher();
   }, []);
+
+  // Mode tugas (G3): mulai setelah consent, kecuali sudah pernah selesai.
+  useEffect(() => {
+    if (agreed && !tasksFinished()) useTaskStore.getState().begin();
+  }, [agreed]);
 
   if (!agreed) {
     return (
@@ -36,6 +45,7 @@ export default function App() {
   if (code === null || nickname === null) {
     return (
       <div className="mx-auto flex h-dvh w-full max-w-md flex-col">
+        {taskActive && <TaskBar />}
         <RoomGateScreen />
       </div>
     );
@@ -43,6 +53,7 @@ export default function App() {
 
   return (
     <div className="flex h-dvh w-full flex-col md:flex-row">
+      {taskActive && <TaskBar />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-center gap-2 border-b border-slate-800 px-4 py-2 md:px-6">
           <span className="font-mono text-sm font-semibold tracking-widest text-indigo-300">

@@ -27,6 +27,8 @@ interface MapViewportProps {
   onRulerMove: (from: GridCell, to: GridCell) => void;
   /** Tutup penggaris milik pemanggil. */
   onRulerEnd: () => void;
+  /** Kotak target tugas pindah-token (G3); null di luar tugas itu. */
+  targetCell: GridCell | null;
 }
 
 interface View {
@@ -75,6 +77,7 @@ export default function MapViewport({
   rulers,
   onRulerMove,
   onRulerEnd,
+  targetCell,
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
@@ -109,6 +112,17 @@ export default function MapViewport({
       : { x: 0, y: 0, s: 1 });
 
   const resolveView = (): View => viewRef.current ?? renderView;
+
+  // Kotak target tugas (G3): satu sel berpinggir tebal di koordinat piksel gambar.
+  const targetBox = targetCell ? resolveGrid(grid) : null;
+  const targetPixel =
+    targetCell && targetBox
+      ? {
+          x: targetBox.offsetX + targetCell.col * targetBox.cellPx,
+          y: targetBox.offsetY + targetCell.row * targetBox.cellPx,
+          size: targetBox.cellPx,
+        }
+      : null;
 
   /** Layar → indeks kotak (mirror konversi fog); null di luar area peta. */
   function cellAtPoint(
@@ -355,6 +369,18 @@ export default function MapViewport({
         />
         <FogOverlay map={map} grid={grid} cells={fog} preview={fogPaint.preview} />
         <RulerOverlay map={map} grid={grid} rulers={rulers} scale={renderView.s} />
+        {targetPixel && (
+          <div
+            aria-label="Kotak target tugas"
+            className="pointer-events-none absolute animate-pulse rounded-sm border-4 border-emerald-400 bg-emerald-400/20"
+            style={{
+              left: targetPixel.x,
+              top: targetPixel.y,
+              width: targetPixel.size,
+              height: targetPixel.size,
+            }}
+          />
+        )}
       </div>
 
       {fogMode ? (
