@@ -3,6 +3,7 @@ import type { Character, CharacterAbilities } from '@myvtt/shared';
 import StepperRow from '../../components/StepperRow';
 import { useRoomStore } from '../room/store';
 import AbilityInputs from './AbilityInputs';
+import AbilityRollRow from './AbilityRollRow';
 
 interface CharacterForm {
   name: string;
@@ -43,7 +44,8 @@ const inputClass =
 /**
  * Lembar karakter ringkas (E1): nama, kelas, level, HP, AC, enam kemampuan.
  * Disimpan per pemain di ruang lewat `character:set` (upsert, owner = sesi);
- * disimpan saat tombol Simpan ditekan, bukan tiap ketukan.
+ * disimpan saat tombol Simpan ditekan, bukan tiap ketukan. Baris tap-to-roll
+ * d20 + modifier (E2) ada di AbilityRollRow.
  */
 export default function CharacterScreen() {
   const nickname = useRoomStore((state) => state.nickname);
@@ -140,6 +142,8 @@ export default function CharacterScreen() {
           />
         </div>
       </div>
+
+      <AbilityRollRow abilities={active.abilities} />
 
       <button
         type="button"

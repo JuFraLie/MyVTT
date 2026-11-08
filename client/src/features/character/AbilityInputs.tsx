@@ -1,19 +1,10 @@
 import type { CharacterAbilities } from '@myvtt/shared';
-import { abilityModifier, formatModifier } from './ability';
+import { abilityModifier, formatModifier, ABILITY_LIST } from './ability';
 
 interface AbilityInputsProps {
   abilities: CharacterAbilities;
   onChange: (key: keyof CharacterAbilities, value: number) => void;
 }
-
-const KEYS: { key: keyof CharacterAbilities; label: string }[] = [
-  { key: 'str', label: 'STR' },
-  { key: 'dex', label: 'DEX' },
-  { key: 'con', label: 'CON' },
-  { key: 'int', label: 'INT' },
-  { key: 'wis', label: 'WIS' },
-  { key: 'cha', label: 'CHA' },
-];
 
 /**
  * Grid enam nilai kemampuan (E1): input angka 0–30 per nilai dengan
@@ -22,7 +13,7 @@ const KEYS: { key: keyof CharacterAbilities; label: string }[] = [
 export default function AbilityInputs({ abilities, onChange }: AbilityInputsProps) {
   return (
     <div className="grid grid-cols-3 gap-2">
-      {KEYS.map(({ key, label }) => (
+      {ABILITY_LIST.map(({ key, label }) => (
         <label
           key={key}
           className="rounded-xl border border-slate-800 bg-slate-950 p-2 text-center"
