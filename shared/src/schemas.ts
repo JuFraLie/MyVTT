@@ -260,6 +260,11 @@ export const initiativeNextSchema = z.object({});
 
 export type InitiativeNextPayload = z.infer<typeof initiativeNextSchema>;
 
+/** Payload `undo:request` (C6): batalkan langkah terakhir milik pengirim; tanpa field. */
+export const undoRequestSchema = z.object({});
+
+export type UndoRequestPayload = z.infer<typeof undoRequestSchema>;
+
 /**
  * Daftar tipe event telemetry (G2, AGENTS §8) — satu sumber untuk klien &
  * server. `task_*` disiapkan untuk G3, `undo` untuk C6, `sync_probe` adalah

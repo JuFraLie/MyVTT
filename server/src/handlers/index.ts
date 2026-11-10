@@ -10,6 +10,7 @@ import { registerCharacterHandlers } from './character';
 import { registerTelemetryHandlers } from './telemetry';
 import { registerRulerHandlers } from './ruler';
 import { registerInitiativeHandlers } from './initiative';
+import { registerUndoHandlers } from './undo';
 
 /**
  * Pendaftaran seluruh handler event per grup (AGENTS.md §6).
@@ -31,4 +32,5 @@ export function registerHandlers(io: Server): void {
   registerTelemetryHandlers(io);
   registerRulerHandlers(io);
   registerInitiativeHandlers(io);
+  registerUndoHandlers(io);
 }

@@ -23,6 +23,7 @@ import {
   getRoomState,
   isPlayerInRoom,
   moveToken,
+  pushUndo,
   removeToken,
   updateToken,
 } from '../rooms/registry';
@@ -161,6 +162,15 @@ export function registerTokenHandlers(io: Server): void {
         return;
       }
 
+      // C6: simpan posisi sebelumnya agar gerak ini bisa dibatalkan pelakunya.
+      if (token.col !== col || token.row !== row) {
+        pushUndo(membership.code, {
+          actor: membership.nickname,
+          type: 'move',
+          tokenId: id,
+          from: { col: token.col, row: token.row },
+        });
+      }
       moveToken(membership.code, id, col, row);
 
       // Disiarkan sebagai token:moved (bukan state:full) agar ringan saat drag sering terjadi.
@@ -236,6 +246,13 @@ export function registerTokenHandlers(io: Server): void {
         });
         // D3: catat perubahan HP yang nyata (nilai sama tidak dicatat).
         if (hp !== undefined && hp !== hpBefore) {
+          // C6: simpan HP sebelumnya agar perubahan ini bisa dibatalkan pelakunya.
+          pushUndo(membership.code, {
+            actor: membership.nickname,
+            type: 'hp',
+            tokenId: id,
+            from: { hp: hpBefore },
+          });
           const entry = appendLog(membership.code, {
             type: 'hp',
             actor: membership.nickname,

@@ -44,6 +44,8 @@ interface RoomRecord {
   characters: Character[];
   /** Pelacak inisiatif (C5); transien — ikut state:full, tidak dipersistensi. */
   initiative: InitiativeState;
+  /** Langkah terakhir yang bisa dibatalkan (C6); transien, milik per-actor. */
+  undoStack: UndoEntry[];
 }
 
 interface Membership {
@@ -58,6 +60,14 @@ const memberships = new Map<string, Membership>();
 
 /** Tracker inisiatif kosong (C5) — objek diganti (bukan dimutasi) tiap perubahan. */
 const EMPTY_INITIATIVE: InitiativeState = { entries: [], activeTokenId: null };
+
+/**
+ * Satu langkah yang bisa dibatalkan (C6): gerakan token atau perubahan HP.
+ * `from` = nilai SEBELUM aksi; `actor` membatasi undo pada pelaku sendiri.
+ */
+export type UndoEntry =
+  | { actor: string; type: 'move'; tokenId: string; from: { col: number; row: number } }
+  | { actor: string; type: 'hp'; tokenId: string; from: { hp: number } };
 
 /** Simpan state ruang ke DB setelah mutasi (fire-and-forget, A5). */
 function persist(code: string): void {
@@ -87,6 +97,7 @@ export async function hydrateRoom(code: string): Promise<boolean> {
     createdAt: Date.now(),
     dmSocketId: null,
     initiative: EMPTY_INITIATIVE,
+    undoStack: [],
     ...persisted,
   });
   console.log(`[room] ${code} dipulihkan dari database`);
@@ -112,6 +123,7 @@ export function createRoom(): string {
         log: [],
         characters: [],
         initiative: EMPTY_INITIATIVE,
+        undoStack: [],
       });
       persist(code);
       return code;
@@ -381,8 +393,40 @@ export function removeToken(code: string, id: string): boolean {
       room.initiative.entries.filter((entry) => entry.tokenId !== id),
     );
   }
+  // C6: langkah pada token terhapus tidak lagi bisa dipulihkan — buang.
+  room.undoStack = room.undoStack.filter((entry) => entry.tokenId !== id);
   persist(code);
   return true;
+}
+
+// Batas langkah undo per ruang (C6): yang terlama dibuang agar tetap ringan.
+const UNDO_LIMIT = 20;
+
+/** Catat langkah yang bisa dibatalkan (C6) setelah aksi sah dilakukan. */
+export function pushUndo(code: string, entry: UndoEntry): void {
+  const room = rooms.get(code);
+  if (!room) return;
+  room.undoStack.push(entry);
+  if (room.undoStack.length > UNDO_LIMIT) {
+    room.undoStack.splice(0, room.undoStack.length - UNDO_LIMIT);
+  }
+}
+
+/**
+ * Ambil (sekalian hapus) langkah TERAKHIR milik `actor` (C6);
+ * null bila pemain itu tidak punya langkah tersimpan.
+ */
+export function popOwnUndo(code: string, actor: string): UndoEntry | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+  for (let index = room.undoStack.length - 1; index >= 0; index -= 1) {
+    const entry = room.undoStack[index];
+    if (entry && entry.actor === actor) {
+      room.undoStack.splice(index, 1);
+      return entry;
+    }
+  }
+  return null;
 }
 
 /** Apakah ada pemain (role player) dengan nama itu di ruang? (validasi owner A6) */

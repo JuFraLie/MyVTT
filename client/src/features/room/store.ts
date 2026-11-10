@@ -43,6 +43,7 @@ import {
   type ConditionId,
   type TokenUpdateResult,
   type TokenUpdatedPayload,
+  type UndoResult,
 } from '@myvtt/shared';
 import { getSocket } from '../../lib/socket';
 
@@ -78,6 +79,11 @@ interface RoomState {
   rulers: Record<string, RulerState>;
   /** Pelacak inisiatif (C5); diperbarui state:full & initiative:updated. */
   initiative: InitiativeState;
+  /**
+   * Jumlah langkah milikku yang masih bisa dibatalkan (C6) — penghitung
+   * lokal; tombol undo disembunyikan saat 0 (bukan state bersama).
+   */
+  undoDepth: number;
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -139,6 +145,8 @@ interface RoomState {
   setInitiative: (entries: InitiativeEntry[]) => Promise<InitiativeResult>;
   /** Niat `initiative:next` (C5): maju satu giliran (DM); sinkron lewat `initiative:updated`. */
   nextTurn: () => Promise<InitiativeResult>;
+  /** Niat `undo:request` (C6): batalkan langkah terakhir milik sendiri. */
+  undoLast: () => Promise<UndoResult>;
   /** Niat `asset:add` (C8): daftarkan unggahan ke pustaka (DM, maks 40). */
   addAsset: (name: string, type: TokenType, image: string) => Promise<AssetAddResult>;
   /** Niat `asset:remove` (C8): hapus entri pustaka (DM); token memakai URL tetap. */
@@ -159,6 +167,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   characters: [],
   rulers: {},
   initiative: { entries: [], activeTokenId: null },
+  undoDepth: 0,
   lastRoll: null,
   isConnected: false,
   status: 'idle',
@@ -295,6 +304,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
               return;
             }
             if (!res.ok) rollback();
+            // C6: gerak sah menambah satu langkah yang bisa dibatalkan.
+            else set((state) => ({ undoDepth: state.undoDepth + 1 }));
             resolve(res);
           },
         );
@@ -328,6 +339,10 @@ export const useRoomStore = create<RoomState>((set, get) => ({
               return;
             }
             if (!res.ok) rollback();
+            // C6: hanya HP yang benar-benar berubah menambah langkah undo.
+            else if (previous && previous.hp !== hp) {
+              set((state) => ({ undoDepth: state.undoDepth + 1 }));
+            }
             resolve(res);
           },
         );
@@ -502,6 +517,22 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
+  undoLast: () => {
+    const socket = getSocket();
+    // Pemulihan datang dari broadcast token:moved/token:updated (server).
+    return new Promise<UndoResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.UNDO_REQUEST, {}, (err: Error | null, res?: UndoResult) => {
+          if (err || !res) {
+            reject(err ?? new Error('tanpa acknowledgment'));
+            return;
+          }
+          if (res.ok) set((state) => ({ undoDepth: Math.max(0, state.undoDepth - 1) }));
+          resolve(res);
+        });
+    });
+  },
   addAsset: (name: string, type: TokenType, image: string) => {
     const socket = getSocket();
     // Tanpa optimistik: entri masuk lewat broadcast asset:added (C8).
@@ -652,6 +683,7 @@ socket.on('connect', () => {
             characters: [],
             rulers: {},
             initiative: { entries: [], activeTokenId: null },
+            undoDepth: 0,
             lastRoll: null,
             status: 'error',
             errorMessage: res.error.message,

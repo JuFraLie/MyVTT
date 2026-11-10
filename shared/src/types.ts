@@ -333,6 +333,9 @@ export type InitiativeUpdatedPayload = InitiativeState;
 /** Hasil acknowledgment event `initiative:update` / `initiative:next` (C5). */
 export type InitiativeResult = { ok: true } | { ok: false; error: ErrorPayload };
 
+/** Hasil acknowledgment event `undo:request` (C6). */
+export type UndoResult = { ok: true } | { ok: false; error: ErrorPayload };
+
 /** Hasil acknowledgment event `asset:add` (C8). */
 export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };
 

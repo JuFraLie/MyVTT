@@ -4,6 +4,7 @@ import GridCalibrateScreen from '../grid/GridCalibrateScreen';
 import InitiativeSheet from '../initiative/InitiativeSheet';
 import { useRoomStore } from '../room/store';
 import { useTaskStore } from '../research/taskStore';
+import { logTelemetry } from '../../lib/telemetry';
 import AddTokenSheet from '../token/AddTokenSheet';
 import TokenHPSheet from '../token/TokenHPSheet';
 import MapUpload from './MapUpload';
@@ -15,8 +16,20 @@ import MapViewport from './MapViewport';
  * viewport — karena position: fixed rusak di dalam elemen ber-transform.
  */
 export default function MapScreen() {
-  const { map, grid, tokens, fog, role, setFog, rulers, updateRuler, clearRuler, initiative } =
-    useRoomStore();
+  const {
+    map,
+    grid,
+    tokens,
+    fog,
+    role,
+    setFog,
+    rulers,
+    updateRuler,
+    clearRuler,
+    initiative,
+    undoDepth,
+    undoLast,
+  } = useRoomStore();
   const targetCell = useTaskStore((state) => state.target);
   const [calibrating, setCalibrating] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
@@ -108,6 +121,24 @@ export default function MapScreen() {
 
       {map && <AddTokenSheet open={addingToken} onClose={() => setAddingToken(false)} />}
       <InitiativeSheet open={showInitiative} onClose={() => setShowInitiative(false)} />
+
+      {/* C6: undo milik sendiri — hanya muncul bila ada langkah yang bisa ditarik. */}
+      {map && !calibrating && undoDepth > 0 && (
+        <button
+          type="button"
+          aria-label="Batalkan langkah terakhir"
+          onClick={() => {
+            void undoLast()
+              .then((result) => {
+                if (result.ok) logTelemetry('undo', {});
+              })
+              .catch(() => undefined);
+          }}
+          className="absolute bottom-16 right-3 z-10 min-h-11 min-w-11 rounded-xl border border-slate-700 bg-slate-900/95 text-base text-slate-100 shadow-lg active:bg-slate-800"
+        >
+          ↩️
+        </button>
+      )}
 
       {selectedToken && (
         <TokenHPSheet
