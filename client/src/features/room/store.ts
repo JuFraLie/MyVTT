@@ -15,6 +15,10 @@ import {
   type DiceType,
   type GridCell,
   type GridConfig,
+  type InitiativeEntry,
+  type InitiativeResult,
+  type InitiativeState,
+  type InitiativeUpdatedPayload,
   type RulerState,
   type RulerUpdatedPayload,
   type GridSetResult,
@@ -72,6 +76,8 @@ interface RoomState {
   characters: Character[];
   /** Penggaris jarak aktif per nickname (B5) — transien, tidak ikut state:full. */
   rulers: Record<string, RulerState>;
+  /** Pelacak inisiatif (C5); diperbarui state:full & initiative:updated. */
+  initiative: InitiativeState;
   /** Status koneksi socket (A4); auto-reconnect aktif secara bawaan. */
   isConnected: boolean;
   status: 'idle' | 'creating' | 'joining' | 'error';
@@ -129,6 +135,10 @@ interface RoomState {
   updateRuler: (from: GridCell, to: GridCell) => void;
   /** Tutup penggaris milikku (B5). */
   clearRuler: () => void;
+  /** Niat `initiative:update` (C5): susun ulang daftar (DM); server mengurutkan & menyiar. */
+  setInitiative: (entries: InitiativeEntry[]) => Promise<InitiativeResult>;
+  /** Niat `initiative:next` (C5): maju satu giliran (DM); sinkron lewat `initiative:updated`. */
+  nextTurn: () => Promise<InitiativeResult>;
   /** Niat `asset:add` (C8): daftarkan unggahan ke pustaka (DM, maks 40). */
   addAsset: (name: string, type: TokenType, image: string) => Promise<AssetAddResult>;
   /** Niat `asset:remove` (C8): hapus entri pustaka (DM); token memakai URL tetap. */
@@ -148,6 +158,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   log: [],
   characters: [],
   rulers: {},
+  initiative: { entries: [], activeTokenId: null },
   lastRoll: null,
   isConnected: false,
   status: 'idle',
@@ -464,6 +475,33 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     });
     getSocket().emit(CLIENT_EVENTS.RULER_SET, { from: null, to: null });
   },
+  setInitiative: (entries: InitiativeEntry[]) => {
+    const socket = getSocket();
+    // Tanpa optimistik: daftar terurut datang dari broadcast initiative:updated.
+    return new Promise<InitiativeResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(
+          CLIENT_EVENTS.INITIATIVE_UPDATE,
+          { entries },
+          (err: Error | null, res?: InitiativeResult) => {
+            if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+            else resolve(res);
+          },
+        );
+    });
+  },
+  nextTurn: () => {
+    const socket = getSocket();
+    return new Promise<InitiativeResult>((resolve, reject) => {
+      socket
+        .timeout(5000)
+        .emit(CLIENT_EVENTS.INITIATIVE_NEXT, {}, (err: Error | null, res?: InitiativeResult) => {
+          if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
+          else resolve(res);
+        });
+    });
+  },
   addAsset: (name: string, type: TokenType, image: string) => {
     const socket = getSocket();
     // Tanpa optimistik: entri masuk lewat broadcast asset:added (C8).
@@ -507,6 +545,7 @@ socket.on(SERVER_EVENTS.STATE_FULL, (state: RoomFullState) => {
     log: state.log,
     characters: state.characters,
     rulers: {},
+    initiative: state.initiative,
   });
 });
 
@@ -517,6 +556,10 @@ socket.on(SERVER_EVENTS.RULER_UPDATED, (payload: RulerUpdatedPayload) => {
     else delete rulers[payload.owner];
     return { rulers };
   });
+});
+
+socket.on(SERVER_EVENTS.INITIATIVE_UPDATED, (payload: InitiativeUpdatedPayload) => {
+  useRoomStore.setState({ initiative: payload });
 });
 
 socket.on(SERVER_EVENTS.LOG_APPENDED, (payload: LogAppendedPayload) => {
@@ -608,6 +651,7 @@ socket.on('connect', () => {
             log: [],
             characters: [],
             rulers: {},
+            initiative: { entries: [], activeTokenId: null },
             lastRoll: null,
             status: 'error',
             errorMessage: res.error.message,

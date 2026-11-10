@@ -5,6 +5,8 @@ import {
   type Character,
   type ConditionId,
   type GridConfig,
+  type InitiativeEntry,
+  type InitiativeState,
   type LogEntry,
   type Role,
   type RoomFullState,
@@ -40,6 +42,8 @@ interface RoomRecord {
   log: LogEntry[];
   /** Lembar karakter per pemain (E1); satu per nickname. */
   characters: Character[];
+  /** Pelacak inisiatif (C5); transien — ikut state:full, tidak dipersistensi. */
+  initiative: InitiativeState;
 }
 
 interface Membership {
@@ -51,6 +55,9 @@ interface Membership {
 // Penyimpanan sementara; A5 menambahkan write-through ke MongoDB.
 const rooms = new Map<string, RoomRecord>();
 const memberships = new Map<string, Membership>();
+
+/** Tracker inisiatif kosong (C5) — objek diganti (bukan dimutasi) tiap perubahan. */
+const EMPTY_INITIATIVE: InitiativeState = { entries: [], activeTokenId: null };
 
 /** Simpan state ruang ke DB setelah mutasi (fire-and-forget, A5). */
 function persist(code: string): void {
@@ -76,7 +83,12 @@ export async function hydrateRoom(code: string): Promise<boolean> {
   if (rooms.has(code)) return true;
   const persisted = await loadRoom(code);
   if (!persisted) return false;
-  rooms.set(code, { createdAt: Date.now(), dmSocketId: null, ...persisted });
+  rooms.set(code, {
+    createdAt: Date.now(),
+    dmSocketId: null,
+    initiative: EMPTY_INITIATIVE,
+    ...persisted,
+  });
   console.log(`[room] ${code} dipulihkan dari database`);
   return true;
 }
@@ -99,6 +111,7 @@ export function createRoom(): string {
         library: [],
         log: [],
         characters: [],
+        initiative: EMPTY_INITIATIVE,
       });
       persist(code);
       return code;
@@ -170,6 +183,7 @@ export function getRoomState(code: string): RoomFullState | null {
     library: room.library,
     log: room.log,
     characters: room.characters,
+    initiative: room.initiative,
   };
 }
 
@@ -241,6 +255,46 @@ export function appendLog(
   if (room.log.length > LOG_LIMIT) room.log.splice(0, room.log.length - LOG_LIMIT);
   persist(code);
   return full;
+}
+
+/**
+ * Set pelacak inisiatif (C5): dedupe tokenId lalu urutkan nilai menurun
+ * (sort stabil — urutan input jadi tiebreaker). Token aktif dipertahankan
+ * bila masih ada; jika tidak → entri teratas (mulai pertarungan).
+ * Transien: sengaja TANPA persist() — A5 tidak menyebut inisiatif.
+ * Mengembalikan state final untuk disiarkan `initiative:updated`.
+ */
+export function setInitiative(code: string, entries: InitiativeEntry[]): InitiativeState | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+  const seen = new Set<string>();
+  const unique: InitiativeEntry[] = [];
+  for (const entry of entries) {
+    if (seen.has(entry.tokenId)) continue;
+    seen.add(entry.tokenId);
+    unique.push(entry);
+  }
+  unique.sort((a, b) => b.initiative - a.initiative);
+  const activeTokenId = unique.some((entry) => entry.tokenId === room.initiative.activeTokenId)
+    ? room.initiative.activeTokenId
+    : (unique[0]?.tokenId ?? null);
+  room.initiative = { entries: unique, activeTokenId };
+  return room.initiative;
+}
+
+/**
+ * Maju satu giliran (C5): berputar ke awal setelah entri terakhir;
+ * token aktif yang sudah tidak ada di daftar → mulai dari entri teratas.
+ */
+export function advanceInitiative(code: string): InitiativeState | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+  const { entries, activeTokenId } = room.initiative;
+  if (entries.length === 0) return room.initiative;
+  const current = entries.findIndex((entry) => entry.tokenId === activeTokenId);
+  const nextIndex = current < 0 ? 0 : (current + 1) % entries.length;
+  room.initiative = { entries, activeTokenId: entries[nextIndex]?.tokenId ?? null };
+  return room.initiative;
 }
 
 // Batas lembar karakter per ruang (E1) — mencegah akumulasi dari nickname baru.
@@ -319,6 +373,14 @@ export function removeToken(code: string, id: string): boolean {
   const index = room.tokens.findIndex((item) => item.id === id);
   if (index < 0) return false;
   room.tokens.splice(index, 1);
+  // C5: token terdaftar ikut dibuang dari pelacak inisiatif agar
+  // validasi `initiative:update` (semua id harus ada) tidak macet.
+  if (room.initiative.entries.some((entry) => entry.tokenId === id)) {
+    setInitiative(
+      code,
+      room.initiative.entries.filter((entry) => entry.tokenId !== id),
+    );
+  }
   persist(code);
   return true;
 }

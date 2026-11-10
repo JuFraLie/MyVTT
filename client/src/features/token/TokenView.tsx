@@ -12,6 +12,8 @@ interface TokenViewProps {
   size: number;
   /** Lebar satu sel — membatasi skala inisial/badge agar tidak membesar penuh pada token 2×2/3×3 (C9). */
   cellPx: number;
+  /** Token sedang giliran (C5): ring emas di luar garis tepi. */
+  activeTurn?: boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ interface TokenViewProps {
  * tetap tampil (fallback sesuai AGENTS.md §12). Badge HP (C3) di tepi bawah,
  * ikon kondisi (C4) di tepi atas.
  */
-export default function TokenView({ token, size, cellPx }: TokenViewProps) {
+export default function TokenView({ token, size, cellPx, activeTurn = false }: TokenViewProps) {
   // Simpan URL yang gagal agar perubahan gambar memberi percobaan baru
   // tanpa useEffect (pola "adjust during render").
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -32,16 +34,21 @@ export default function TokenView({ token, size, cellPx }: TokenViewProps) {
     .map((id) => PRESET_BY_ID[id]?.label ?? '')
     .filter(Boolean)
     .join(', ');
+  // Ring tepi: gelap selalu; tambahan amber (giliran aktif C5) di luarnya.
+  const edgeRing = Math.max(1, cellPx * 0.05);
+  const boxShadow = activeTurn
+    ? `0 0 0 ${edgeRing}px rgba(15, 23, 42, 0.9), 0 0 0 ${edgeRing + Math.max(3, cellPx * 0.12)}px #f59e0b`
+    : `0 0 0 ${edgeRing}px rgba(15, 23, 42, 0.9)`;
 
   return (
     <div
       role="img"
-      aria-label={`${token.name}, HP ${token.hp}${conditionLabels ? `, kondisi ${conditionLabels}` : ''}`}
+      aria-label={`${token.name}, HP ${token.hp}${conditionLabels ? `, kondisi ${conditionLabels}` : ''}${activeTurn ? ', giliran aktif' : ''}`}
       className="flex h-full w-full items-center justify-center rounded-full font-bold text-white select-none"
       style={{
         fontSize: inner * 0.42,
         backgroundColor: token.color,
-        boxShadow: `0 0 0 ${Math.max(1, cellPx * 0.05)}px rgba(15, 23, 42, 0.9)`,
+        boxShadow,
       }}
     >
       {token.name.charAt(0).toUpperCase()}

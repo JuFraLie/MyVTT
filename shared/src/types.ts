@@ -144,6 +144,8 @@ export interface RoomFullState {
   log: LogEntry[];
   /** Lembar karakter per pemain di ruang (E1); owner = nickname pembuat. */
   characters: Character[];
+  /** Pelacak inisiatif (C5); transien — tidak ikut persistensi. */
+  initiative: InitiativeState;
 }
 
 /** Peta aktif ruang (B1); dimensi dalam piksel gambar hasil kompresi. */
@@ -307,6 +309,29 @@ export interface RulerUpdatedPayload {
 
 /** Hasil acknowledgment event `ruler:set` (B5). */
 export type RulerSetResult = { ok: true } | { ok: false; error: ErrorPayload };
+
+/** Satu baris pelacak inisiatif (C5): token + nilai lemparan. */
+export interface InitiativeEntry {
+  tokenId: string;
+  initiative: number;
+}
+
+/**
+ * Pelacak inisiatif ruang (C5): `entries` selalu terurut nilai menurun
+ * (server yang mengurutkan), `activeTokenId` = token yang sedang giliran.
+ * Ikut `state:full` agar pemain baru langsung melihat, tetapi TIDAK
+ * dipersistensikan (A5 tidak menyebutnya).
+ */
+export interface InitiativeState {
+  entries: InitiativeEntry[];
+  activeTokenId: string | null;
+}
+
+/** Payload event server→klien `initiative:updated` (C5). */
+export type InitiativeUpdatedPayload = InitiativeState;
+
+/** Hasil acknowledgment event `initiative:update` / `initiative:next` (C5). */
+export type InitiativeResult = { ok: true } | { ok: false; error: ErrorPayload };
 
 /** Hasil acknowledgment event `asset:add` (C8). */
 export type AssetAddResult = { ok: true } | { ok: false; error: ErrorPayload };

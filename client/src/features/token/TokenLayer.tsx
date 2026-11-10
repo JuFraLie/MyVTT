@@ -13,6 +13,8 @@ interface TokenLayerProps {
   onTapToken: (token: Token) => void;
   /** Mode fog aktif (B4): sentuh token diteruskan ke alat cat, bukan drag. */
   fogMode?: boolean;
+  /** Token yang sedang giliran (C5) — ditandai ring emas di TokenView. */
+  activeTokenId?: string | null;
 }
 
 interface DragState {
@@ -52,6 +54,7 @@ export default function TokenLayer({
   scale,
   onTapToken,
   fogMode = false,
+  activeTokenId = null,
 }: TokenLayerProps) {
   const resolved = resolveGrid(grid);
   const role = useRoomStore((state) => state.role);
@@ -152,7 +155,12 @@ export default function TokenLayer({
             onPointerUp={handleEnd}
             onPointerCancel={handleEnd}
           >
-            <TokenView token={token} size={box} cellPx={resolved.cellPx} />
+            <TokenView
+              token={token}
+              size={box}
+              cellPx={resolved.cellPx}
+              activeTurn={token.id === activeTokenId}
+            />
           </div>
         );
       })}

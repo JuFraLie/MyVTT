@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Token } from '@myvtt/shared';
 import GridCalibrateScreen from '../grid/GridCalibrateScreen';
+import InitiativeSheet from '../initiative/InitiativeSheet';
 import { useRoomStore } from '../room/store';
 import { useTaskStore } from '../research/taskStore';
 import AddTokenSheet from '../token/AddTokenSheet';
@@ -14,11 +15,13 @@ import MapViewport from './MapViewport';
  * viewport — karena position: fixed rusak di dalam elemen ber-transform.
  */
 export default function MapScreen() {
-  const { map, grid, tokens, fog, role, setFog, rulers, updateRuler, clearRuler } = useRoomStore();
+  const { map, grid, tokens, fog, role, setFog, rulers, updateRuler, clearRuler, initiative } =
+    useRoomStore();
   const targetCell = useTaskStore((state) => state.target);
   const [calibrating, setCalibrating] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
   const [fogMode, setFogMode] = useState(false);
+  const [showInitiative, setShowInitiative] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const isDm = role === 'dm';
   const selectedToken: Token | null = tokens.find((token) => token.id === selectedTokenId) ?? null;
@@ -38,6 +41,7 @@ export default function MapScreen() {
           onRulerMove={updateRuler}
           onRulerEnd={clearRuler}
           targetCell={targetCell}
+          activeTokenId={initiative.activeTokenId}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -53,40 +57,57 @@ export default function MapScreen() {
         </div>
       )}
 
-      {map && isDm && !calibrating && (
+      {map && !calibrating && (
         <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
+          <div className="flex gap-2">
+            {isDm && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCalibrating(true)}
+                  className="min-h-11 rounded-xl border border-slate-700 bg-slate-900/95 px-4 text-sm font-medium text-slate-100 active:bg-slate-800"
+                >
+                  {grid ? 'Ubah Grid' : 'Atur Grid'}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={fogMode}
+                  onClick={() => setFogMode((value) => !value)}
+                  className={`min-h-11 rounded-xl border px-4 text-sm font-medium ${
+                    fogMode
+                      ? 'border-indigo-400 bg-indigo-500 text-white'
+                      : 'border-slate-700 bg-slate-900/95 text-slate-100 active:bg-slate-800'
+                  }`}
+                >
+                  Fog
+                </button>
+              </>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setCalibrating(true)}
-              className="min-h-11 rounded-xl border border-slate-700 bg-slate-900/95 px-4 text-sm font-medium text-slate-100 active:bg-slate-800"
+              onClick={() => setShowInitiative(true)}
+              aria-label="Pelacak inisiatif"
+              className="min-h-11 min-w-11 rounded-xl border border-slate-700 bg-slate-900/95 px-4 text-sm font-medium text-slate-100 active:bg-slate-800"
             >
-              {grid ? 'Ubah Grid' : 'Atur Grid'}
+              ⚔️
             </button>
-            <button
-              type="button"
-              aria-pressed={fogMode}
-              onClick={() => setFogMode((value) => !value)}
-              className={`min-h-11 rounded-xl border px-4 text-sm font-medium ${
-                fogMode
-                  ? 'border-indigo-400 bg-indigo-500 text-white'
-                  : 'border-slate-700 bg-slate-900/95 text-slate-100 active:bg-slate-800'
-              }`}
-            >
-              Fog
-            </button>
+            {isDm && (
+              <button
+                type="button"
+                onClick={() => setAddingToken(true)}
+                className="min-h-11 rounded-xl bg-indigo-500 px-4 text-sm font-medium text-white active:bg-indigo-400"
+              >
+                ＋ Token
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setAddingToken(true)}
-            className="min-h-11 rounded-xl bg-indigo-500 px-4 text-sm font-medium text-white active:bg-indigo-400"
-          >
-            ＋ Token
-          </button>
         </div>
       )}
 
       {map && <AddTokenSheet open={addingToken} onClose={() => setAddingToken(false)} />}
+      <InitiativeSheet open={showInitiative} onClose={() => setShowInitiative(false)} />
 
       {selectedToken && (
         <TokenHPSheet

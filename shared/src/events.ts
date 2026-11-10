@@ -19,6 +19,7 @@ export const CLIENT_EVENTS = {
   CHARACTER_SET: 'character:set',
   RULER_SET: 'ruler:set',
   INITIATIVE_UPDATE: 'initiative:update',
+  INITIATIVE_NEXT: 'initiative:next',
   UNDO_REQUEST: 'undo:request',
   TELEMETRY_EVENT: 'telemetry:event',
 } as const;

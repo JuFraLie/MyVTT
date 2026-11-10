@@ -274,6 +274,10 @@ export function registerTokenHandlers(io: Server): void {
         }
 
         const { id } = parsed.data;
+        // C5: catat dulu apakah token terdaftar di inisiatif (prune terjadi di removeToken).
+        const inInitiative =
+          getRoom(membership.code)?.initiative.entries.some((entry) => entry.tokenId === id) ??
+          false;
         if (!removeToken(membership.code, id)) {
           ack({ ok: false, error: TOKEN_MISSING });
           return;
@@ -281,6 +285,10 @@ export function registerTokenHandlers(io: Server): void {
         console.log(`[token] ${membership.code} -hapus ${id.slice(0, 8)}…`);
 
         io.to(membership.code).emit(SERVER_EVENTS.TOKEN_REMOVED, { id });
+        if (inInitiative) {
+          const state = getRoom(membership.code)?.initiative;
+          if (state) io.to(membership.code).emit(SERVER_EVENTS.INITIATIVE_UPDATED, state);
+        }
         ack({ ok: true });
       },
     );

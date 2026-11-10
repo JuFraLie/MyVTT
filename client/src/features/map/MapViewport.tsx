@@ -29,6 +29,8 @@ interface MapViewportProps {
   onRulerEnd: () => void;
   /** Kotak target tugas pindah-token (G3); null di luar tugas itu. */
   targetCell: GridCell | null;
+  /** Token yang sedang giliran (C5) — ring emas; null bila belum ada. */
+  activeTokenId?: string | null;
 }
 
 interface View {
@@ -78,6 +80,7 @@ export default function MapViewport({
   onRulerMove,
   onRulerEnd,
   targetCell,
+  activeTokenId = null,
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
@@ -366,6 +369,7 @@ export default function MapViewport({
           scale={renderView.s}
           onTapToken={onTapToken}
           fogMode={fogMode}
+          activeTokenId={activeTokenId}
         />
         <FogOverlay map={map} grid={grid} cells={fog} preview={fogPaint.preview} />
         <RulerOverlay map={map} grid={grid} rulers={rulers} scale={renderView.s} />

@@ -238,6 +238,28 @@ export const rulerSetSchema = z.object({
 
 export type RulerSetPayload = z.infer<typeof rulerSetSchema>;
 
+/** UUID token (server-generated, C1) — dipakai beberapa skema. */
+const tokenIdSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
+/**
+ * Payload `initiative:update` (C5): daftar token + nilai inisiatif.
+ * Urutan bebas dari klien — server mengurutkan menurun & dedupe.
+ */
+export const initiativeUpdateSchema = z.object({
+  entries: z
+    .array(z.object({ tokenId: tokenIdSchema, initiative: z.number().int().min(0).max(99) }))
+    .max(50),
+});
+
+export type InitiativeUpdatePayload = z.infer<typeof initiativeUpdateSchema>;
+
+/** Payload `initiative:next` (C5): maju satu giliran; tanpa field. */
+export const initiativeNextSchema = z.object({});
+
+export type InitiativeNextPayload = z.infer<typeof initiativeNextSchema>;
+
 /**
  * Daftar tipe event telemetry (G2, AGENTS §8) — satu sumber untuk klien &
  * server. `task_*` disiapkan untuk G3, `undo` untuk C6, `sync_probe` adalah
