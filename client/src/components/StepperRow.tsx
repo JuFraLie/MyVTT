@@ -4,13 +4,21 @@ interface StepperRowProps {
   display: string;
   onDec: () => void;
   onInc: () => void;
+  /** Bekukan stepper (mis. jumlah dadu saat advantage — D2). */
+  disabled?: boolean;
 }
 
 /**
  * Baris stepper −/+ (target sentuh ≥ 44 px, zona jempol — AGENTS §7).
  * Dipakai layar Dadu (D1) dan lembar karakter (E1).
  */
-export default function StepperRow({ label, display, onDec, onInc }: StepperRowProps) {
+export default function StepperRow({
+  label,
+  display,
+  onDec,
+  onInc,
+  disabled = false,
+}: StepperRowProps) {
   return (
     <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
       <span className="text-sm text-slate-300">{label}</span>
@@ -19,7 +27,8 @@ export default function StepperRow({ label, display, onDec, onInc }: StepperRowP
           type="button"
           aria-label={`Kurangi ${label}`}
           onClick={onDec}
-          className="h-11 w-11 rounded-lg bg-slate-800 text-lg text-slate-100 active:bg-slate-700"
+          disabled={disabled}
+          className="h-11 w-11 rounded-lg bg-slate-800 text-lg text-slate-100 active:bg-slate-700 disabled:opacity-40"
         >
           −
         </button>
@@ -30,7 +39,8 @@ export default function StepperRow({ label, display, onDec, onInc }: StepperRowP
           type="button"
           aria-label={`Tambah ${label}`}
           onClick={onInc}
-          className="h-11 w-11 rounded-lg bg-slate-800 text-lg text-slate-100 active:bg-slate-700"
+          disabled={disabled}
+          className="h-11 w-11 rounded-lg bg-slate-800 text-lg text-slate-100 active:bg-slate-700 disabled:opacity-40"
         >
           +
         </button>

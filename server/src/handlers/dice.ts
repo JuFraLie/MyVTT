@@ -46,20 +46,33 @@ export function registerDiceHandlers(io: Server): void {
         return;
       }
 
-      const { dice, count, modifier } = parsed.data;
+      const { dice, count, modifier, mode } = parsed.data;
       const faces = FACES[dice];
-      const rolls = Array.from({ length: count }, () => randomInt(1, faces + 1));
-      const total = rolls.reduce((sum, value) => sum + value, 0) + modifier;
+      // D2: advantage/disadvantage melempar 2d20 lalu ambil tertinggi/terendah.
+      const isCheck = mode === 'advantage' || mode === 'disadvantage';
+      let rolls: number[];
+      let total: number;
+      if (isCheck) {
+        const pair = [randomInt(1, 21), randomInt(1, 21)];
+        const kept = mode === 'advantage' ? Math.max(...pair) : Math.min(...pair);
+        rolls = pair;
+        total = kept + modifier;
+      } else {
+        rolls = Array.from({ length: count }, () => randomInt(1, faces + 1));
+        total = rolls.reduce((sum, value) => sum + value, 0) + modifier;
+      }
+      const label = isCheck ? `2d20 ${mode === 'advantage' ? 'adv' : 'dis'}` : `${count}${dice}`;
       const result: DiceRolledPayload = {
         dice,
-        count,
+        count: isCheck ? 2 : count,
         rolls,
         modifier,
         total,
         nickname: membership.nickname,
+        ...(isCheck && mode ? { mode } : {}),
       };
       console.log(
-        `[dice] ${membership.code} ${membership.nickname}: ${count}${dice}${modifier >= 0 ? '+' : ''}${modifier} = ${total}`,
+        `[dice] ${membership.code} ${membership.nickname}: ${label}${modifier >= 0 ? '+' : ''}${modifier} = ${total}`,
       );
 
       io.to(membership.code).emit(SERVER_EVENTS.DICE_ROLLED, result);
@@ -67,7 +80,7 @@ export function registerDiceHandlers(io: Server): void {
       const entry = appendLog(membership.code, {
         type: 'dice',
         actor: membership.nickname,
-        text: `${count}${dice}${modifier >= 0 ? '+' : ''}${modifier} = ${total} (${rolls.join(', ')})`,
+        text: `${label}${modifier >= 0 ? '+' : ''}${modifier} = ${total} (${rolls.join(', ')})`,
       });
       if (entry) {
         io.to(membership.code).emit(SERVER_EVENTS.LOG_APPENDED, { entry });

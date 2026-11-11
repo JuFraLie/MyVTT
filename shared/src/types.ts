@@ -218,6 +218,9 @@ export interface AssetRemovedPayload {
 /** Tipe dadu yang didukung (D1). */
 export type DiceType = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20';
 
+/** Mode lemparan d20 (D2): advantage ambil tertinggi, disadvantage ambil terendah. */
+export type DiceRollMode = 'normal' | 'advantage' | 'disadvantage';
+
 /** Payload event server→klien `dice:rolled` (D1): hasil lemparan anggota ruang. */
 export interface DiceRolledPayload {
   dice: DiceType;
@@ -229,6 +232,8 @@ export interface DiceRolledPayload {
   total: number;
   /** Nama panggilan pemilik lemparan. */
   nickname: string;
+  /** Mode d20 (D2); tidak ada = lemparan normal. Untuk adv/dis, `count` = 2. */
+  mode?: DiceRollMode;
 }
 
 /** Hasil acknowledgment event `dice:roll` (D1). */

@@ -12,6 +12,7 @@ import {
   type CharacterUpdatedPayload,
   type DiceRolledPayload,
   type DiceRollResult,
+  type DiceRollMode,
   type DiceType,
   type GridCell,
   type GridConfig,
@@ -131,7 +132,12 @@ interface RoomState {
    */
   lastRoll: DiceRolledPayload | null;
   /** Niat `dice:roll` (D1): angka dadu dihitung server, semua klien terima `dice:rolled`. */
-  rollDice: (dice: DiceType, count: number, modifier: number) => Promise<DiceRollResult>;
+  rollDice: (
+    dice: DiceType,
+    count: number,
+    modifier: number,
+    mode?: DiceRollMode,
+  ) => Promise<DiceRollResult>;
   /**
    * Niat `character:set` (E1): simpan isi lembar LENGKAP milik pengirim
    * (upsert). Owner diisi server dari nickname sesi — tidak dikirim klien.
@@ -444,7 +450,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         });
     });
   },
-  rollDice: (dice: DiceType, count: number, modifier: number) => {
+  rollDice: (dice: DiceType, count: number, modifier: number, mode?: DiceRollMode) => {
     const socket = getSocket();
     // Tanpa optimistik: hasil sah hanya datang dari `dice:rolled` (server).
     return new Promise<DiceRollResult>((resolve, reject) => {
@@ -452,7 +458,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         .timeout(5000)
         .emit(
           CLIENT_EVENTS.DICE_ROLL,
-          { dice, count, modifier },
+          { dice, count, modifier, mode },
           (err: Error | null, res?: DiceRollResult) => {
             if (err || !res) reject(err ?? new Error('tanpa acknowledgment'));
             else resolve(res);

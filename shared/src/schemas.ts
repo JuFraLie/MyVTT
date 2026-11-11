@@ -172,11 +172,21 @@ export type AssetRemovePayload = z.infer<typeof assetRemoveSchema>;
  * Payload `dice:roll` (D1): lemparan dadu. Hasil (rolls + total) dihitung di
  * server dengan pembangkit acak server — klien tidak pernah mengirim angka hasil.
  */
-export const diceRollSchema = z.object({
-  dice: z.enum(['d4', 'd6', 'd8', 'd10', 'd12', 'd20']),
-  count: z.number().int().min(1).max(20),
-  modifier: z.number().int().min(-99).max(99),
-});
+export const diceRollSchema = z
+  .object({
+    dice: z.enum(['d4', 'd6', 'd8', 'd10', 'd12', 'd20']),
+    count: z.number().int().min(1).max(20),
+    modifier: z.number().int().min(-99).max(99),
+    /** D2: advantage/disadvantage hanya untuk tepat satu d20. */
+    mode: z.enum(['normal', 'advantage', 'disadvantage']).optional(),
+  })
+  .refine(
+    (value) =>
+      value.mode === undefined ||
+      value.mode === 'normal' ||
+      (value.dice === 'd20' && value.count === 1),
+    { message: 'advantage/disadvantage hanya berlaku untuk 1d20' },
+  );
 
 export type DiceRollPayload = z.infer<typeof diceRollSchema>;
 
